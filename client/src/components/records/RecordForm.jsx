@@ -57,12 +57,46 @@ export const RecordForm = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [duplicateInfo, setDuplicateInfo] = useState(null);
   const [errors, setErrors] = useState({});
+  const [autoSlNumber, setAutoSlNumber] = useState(null);
+  const [isAutoSlLoading, setIsAutoSlLoading] = useState(false);
+
+  // Automatically fetch next sequential SL when form loads or date changes for new records
+  const fetchNextSequentialSl = async (targetDate) => {
+    if (initialData) return;
+    try {
+      setIsAutoSlLoading(true);
+      const res = await recordsApi.getNextSl({ date: targetDate || formData.date });
+      if (res.success && res.nextSl) {
+        setAutoSlNumber(res.nextSl);
+        setFormData((prev) => {
+          // If sl is empty or matches previous auto-number, update it with new nextSl
+          if (!prev.sl || prev.sl === autoSlNumber || prev._isAutoSl) {
+            return { ...prev, sl: res.nextSl, _isAutoSl: true };
+          }
+          return prev;
+        });
+      }
+    } catch (err) {
+      console.error('Failed to fetch next SL:', err);
+    } finally {
+      setIsAutoSlLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (initialData) {
       setFormData(getInitialState());
+    } else {
+      fetchNextSequentialSl(formData.date);
     }
   }, [initialData]);
+
+  // When date changes on a new record, refresh the auto SL sequence
+  useEffect(() => {
+    if (!initialData && formData.date) {
+      fetchNextSequentialSl(formData.date);
+    }
+  }, [formData.date, initialData]);
 
   // Debounced duplicate check when patientId or date changes
   useEffect(() => {
@@ -93,16 +127,24 @@ export const RecordForm = ({
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+      ...(name === 'sl' ? { _isAutoSl: false } : {}),
+    }));
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: null }));
     }
   };
 
   const handleReset = () => {
-    setFormData(getInitialState());
+    const fresh = getInitialState();
+    setFormData(fresh);
     setDuplicateInfo(null);
     setErrors({});
+    if (!initialData) {
+      fetchNextSequentialSl(fresh.date);
+    }
   };
 
   const validate = () => {
@@ -144,8 +186,28 @@ export const RecordForm = ({
         toast.success('Record updated successfully');
       } else {
         res = await recordsApi.createRecord(payload);
-        toast.success('Record saved successfully');
-        handleReset();
+        toast.success(`Record #${res.data?.sl || ''} saved successfully`);
+        
+        // Prepare next record with automatic +1 incremented serial number and clean input
+        const savedSl = res.data?.sl || Number(formData.sl) || 1;
+        const nextSequentialSl = savedSl + 1;
+        setAutoSlNumber(nextSequentialSl);
+
+        const now = new Date();
+        const hours = String(now.getHours()).padStart(2, '0');
+        const mins = String(now.getMinutes()).padStart(2, '0');
+
+        setFormData({
+          sl: nextSequentialSl,
+          patientId: '',
+          patientName: '',
+          date: formData.date, // keep same date for rapid batch entries
+          time: `${hours}:${mins}`,
+          remark: '',
+          _isAutoSl: true,
+        });
+        setDuplicateInfo(null);
+        setErrors({});
       }
 
       if (onSuccess) {
@@ -168,21 +230,45 @@ export const RecordForm = ({
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* SL (Serial Number) - Optional manual override */}
+        {/* SL (Serial Number) - Automatic sequential numbering */}
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-            <Hash className="w-3.5 h-3.5 text-slate-400" />
-            SL (Serial Number)
-          </label>
-          <input
-            type="number"
-            name="sl"
-            value={formData.sl}
-            onChange={handleChange}
-            placeholder="Auto-generated if blank"
-            className="w-full rounded-lg border border-slate-300 bg-slate-50/70 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus-ring"
-          />
-          <p className="text-[10px] text-slate-400">Leave blank for automatic sequential monthly numbering</p>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+              <Hash className="w-3.5 h-3.5 text-brand-600" />
+              SL (Serial Number)
+            </label>
+            {autoSlNumber && !initialData && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+                Auto #{autoSlNumber}
+              </span>
+            )}
+          </div>
+          <div className="relative">
+            <input
+              type="number"
+              name="sl"
+              value={formData.sl}
+              onChange={handleChange}
+              placeholder={isAutoSlLoading ? 'Calculating SL...' : (autoSlNumber ? `Auto #${autoSlNumber}` : 'Auto-generated')}
+              className="w-full rounded-lg border border-slate-300 bg-slate-50/90 px-3 py-2 text-sm text-slate-800 font-semibold focus-ring"
+            />
+            {!initialData && autoSlNumber && Number(formData.sl) !== Number(autoSlNumber) && (
+              <button
+                type="button"
+                onClick={() => setFormData((prev) => ({ ...prev, sl: autoSlNumber, _isAutoSl: true }))}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] bg-brand-50 hover:bg-brand-100 text-brand-700 font-medium px-2 py-0.5 rounded border border-brand-200 transition-colors"
+                title="Reset to next sequential monthly SL"
+              >
+                Reset to Auto #{autoSlNumber}
+              </button>
+            )}
+          </div>
+          <p className="text-[10px] text-slate-500">
+            {formData._isAutoSl !== false && autoSlNumber
+              ? '✨ Next monthly sequential number auto-assigned'
+              : 'Sequential monthly number (auto-increments on save)'}
+          </p>
         </div>
 
         {/* Patient ID - Strictly Text string preserving leading zeroes */}

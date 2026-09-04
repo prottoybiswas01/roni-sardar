@@ -8,7 +8,8 @@ import { RecordForm } from '../components/records/RecordForm';
 import { Modal } from '../components/common/Modal';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { exportMonthlyReportToExcel } from '../services/excelService';
-import { PlusCircle, Camera, Download, FileSpreadsheet } from 'lucide-react';
+import { exportMonthlyReportToPDF } from '../services/pdfService';
+import { PlusCircle, Camera, Download, FileSpreadsheet, FileType } from 'lucide-react';
 
 export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
   const toast = useToast();
@@ -24,7 +25,8 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
   const [editingRecord, setEditingRecord] = useState(null);
   const [deletingRecord, setDeletingRecord] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   const fetchRecords = useCallback(async (page = 1) => {
     try {
@@ -81,7 +83,7 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
 
   const handleExcelExport = async () => {
     try {
-      setIsExporting(true);
+      setIsExportingExcel(true);
       const res = await recordsApi.getRecords({
         month: selectedMonth,
         year: selectedYear,
@@ -105,7 +107,37 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
     } catch (err) {
       toast.error('Export failed: ' + err.message);
     } finally {
-      setIsExporting(false);
+      setIsExportingExcel(false);
+    }
+  };
+
+  const handlePdfExport = async () => {
+    try {
+      setIsExportingPdf(true);
+      const res = await recordsApi.getRecords({
+        month: selectedMonth,
+        year: selectedYear,
+        limit: 1000,
+      });
+
+      if (!res.data || res.data.length === 0) {
+        toast.warning('No records available for the selected month to export');
+        return;
+      }
+
+      exportMonthlyReportToPDF({
+        records: res.data,
+        month: selectedMonth,
+        year: selectedYear,
+        hospitalName: settings.hospitalName,
+        location: settings.location,
+      });
+
+      toast.success('PDF document downloaded successfully');
+    } catch (err) {
+      toast.error('PDF export failed: ' + err.message);
+    } finally {
+      setIsExportingPdf(false);
     }
   };
 
@@ -131,17 +163,29 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-sky-50 text-sky-800 border border-sky-200 hover:bg-sky-100 text-xs font-semibold shadow-subtle transition-colors"
           >
             <Camera className="w-4 h-4 text-sky-600" />
-            Scan with Camera
+            Scan
           </button>
 
           <button
             type="button"
-            disabled={isExporting || records.length === 0}
+            disabled={isExportingExcel || records.length === 0}
             onClick={handleExcelExport}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-semibold shadow-subtle transition-colors disabled:opacity-40"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-800 text-xs font-semibold shadow-subtle transition-colors disabled:opacity-40"
+            title="Download formatted Excel (.xlsx) file"
           >
-            <Download className="w-4 h-4 text-emerald-600" />
-            Download Excel
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            Excel
+          </button>
+
+          <button
+            type="button"
+            disabled={isExportingPdf || records.length === 0}
+            onClick={handlePdfExport}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-rose-50 hover:border-rose-300 hover:text-rose-800 text-xs font-semibold shadow-subtle transition-colors disabled:opacity-40"
+            title="Download formatted PDF document"
+          >
+            <FileType className="w-4 h-4 text-rose-600" />
+            PDF
           </button>
 
           <button

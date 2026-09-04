@@ -6,6 +6,40 @@ const getNextSequenceNumber = async (month, year) => {
   return lastRecord && typeof lastRecord.sl === 'number' ? lastRecord.sl + 1 : 1;
 };
 
+// @desc    Get next sequential SL number for a given date / month & year
+// @route   GET /api/records/next-sl
+// @access  Private
+export const getNextSl = async (req, res, next) => {
+  try {
+    const { month, year, date } = req.query;
+    let targetMonth, targetYear;
+
+    if (date) {
+      const d = new Date(date);
+      if (!isNaN(d.getTime())) {
+        targetMonth = d.getMonth() + 1;
+        targetYear = d.getFullYear();
+      }
+    }
+
+    if (!targetMonth) {
+      targetMonth = month ? Number(month) : new Date().getMonth() + 1;
+      targetYear = year ? Number(year) : new Date().getFullYear();
+    }
+
+    const nextSl = await getNextSequenceNumber(targetMonth, targetYear);
+
+    res.status(200).json({
+      success: true,
+      nextSl,
+      month: targetMonth,
+      year: targetYear,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Get all records with filtering, search, pagination, and sorting
 // @route   GET /api/records
 // @access  Private

@@ -4,7 +4,7 @@
   "description": "Professional Hospital Over Duty / Patient Record Management System",
   "main": "server/server.js",
   "scripts": {
-    "dev": "concurrently \"npm run server --prefix server\" \"npm run dev --prefix client\"",
+    "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
     "start": "node server/server.js",
     "server": "npm run dev --prefix server",
     "client": "npm run dev --prefix client",

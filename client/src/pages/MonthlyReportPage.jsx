@@ -3,6 +3,7 @@ import { recordsApi } from '../services/recordsApi';
 import { useSettings } from '../context/SettingsContext';
 import { useToast } from '../context/ToastContext';
 import { exportMonthlyReportToExcel } from '../services/excelService';
+import { exportMonthlyReportToPDF } from '../services/pdfService';
 import { ReportHeader } from '../components/reports/ReportHeader';
 import { MonthYearPicker } from '../components/layout/MonthYearPicker';
 import { formatDateDisplay, formatTimeDisplay } from '../utils/dateUtils';
@@ -15,6 +16,7 @@ import {
   Printer,
   Calendar,
   FileSpreadsheet,
+  FileType,
 } from 'lucide-react';
 
 export const MonthlyReportPage = ({ onAddNew }) => {
@@ -23,7 +25,8 @@ export const MonthlyReportPage = ({ onAddNew }) => {
 
   const [records, setRecords] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isExporting, setIsExporting] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   const fetchReportData = useCallback(async () => {
     try {
@@ -58,7 +61,7 @@ export const MonthlyReportPage = ({ onAddNew }) => {
     }
 
     try {
-      setIsExporting(true);
+      setIsExportingExcel(true);
       exportMonthlyReportToExcel({
         records,
         month: selectedMonth,
@@ -70,7 +73,30 @@ export const MonthlyReportPage = ({ onAddNew }) => {
     } catch (err) {
       toast.error('Failed to generate Excel file: ' + err.message);
     } finally {
-      setIsExporting(false);
+      setIsExportingExcel(false);
+    }
+  };
+
+  const handleDownloadPDF = () => {
+    if (!records || records.length === 0) {
+      toast.warning('There are no records to export for this period.');
+      return;
+    }
+
+    try {
+      setIsExportingPdf(true);
+      exportMonthlyReportToPDF({
+        records,
+        month: selectedMonth,
+        year: selectedYear,
+        hospitalName: settings.hospitalName,
+        location: settings.location,
+      });
+      toast.success('PDF document downloaded successfully');
+    } catch (err) {
+      toast.error('Failed to generate PDF file: ' + err.message);
+    } finally {
+      setIsExportingPdf(false);
     }
   };
 
@@ -104,12 +130,24 @@ export const MonthlyReportPage = ({ onAddNew }) => {
 
           <button
             type="button"
-            disabled={isExporting || records.length === 0}
+            disabled={isExportingExcel || records.length === 0}
             onClick={handleDownloadExcel}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-semibold shadow-subtle transition-colors disabled:opacity-40"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-800 text-xs font-semibold shadow-subtle transition-colors disabled:opacity-40"
+            title="Download formatted Microsoft Excel (.xlsx) file"
           >
-            <Download className="w-4 h-4 text-emerald-600" />
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
             Download Excel
+          </button>
+
+          <button
+            type="button"
+            disabled={isExportingPdf || records.length === 0}
+            onClick={handleDownloadPDF}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-rose-50 hover:border-rose-300 hover:text-rose-800 text-xs font-semibold shadow-subtle transition-colors disabled:opacity-40"
+            title="Download formatted PDF document"
+          >
+            <FileType className="w-4 h-4 text-rose-600" />
+            Download PDF
           </button>
 
           <button
@@ -119,7 +157,7 @@ export const MonthlyReportPage = ({ onAddNew }) => {
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-md transition-all active:scale-95 disabled:opacity-40"
           >
             <Printer className="w-4 h-4 text-slate-300" />
-            Print Report
+            Print
           </button>
         </div>
       </div>

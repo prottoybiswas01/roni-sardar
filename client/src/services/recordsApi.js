@@ -52,4 +52,13 @@ export const recordsApi = {
     const queryString = query.toString() ? `?${query.toString()}` : '';
     return await apiClient(`/records/dashboard-stats${queryString}`);
   },
+
+  getNextSl: async (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.date) query.append('date', params.date);
+    if (params.month) query.append('month', params.month);
+    if (params.year) query.append('year', params.year);
+    const queryString = query.toString() ? `?${query.toString()}` : '';
+    return await apiClient(`/records/next-sl${queryString}`);
+  },
 };

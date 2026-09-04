@@ -195,12 +195,12 @@ export const seedInitialAdmin = async () => {
     if (count === 0) {
       await User.create({
         name: 'Hospital Administrator',
-        email: 'admin@hospital.local',
+        email: 'admin@hospital.com',
         password: 'adminPassword123!',
         role: 'admin',
         status: 'active',
       });
-      console.log('[Auth] Default administrator initialized: admin@hospital.local / adminPassword123!');
+      console.log('[Auth] Default administrator initialized: admin@hospital.com / adminPassword123!');
     }
   } catch (err) {
     console.error('[Auth] Error checking initial admin seed:', err.message);
