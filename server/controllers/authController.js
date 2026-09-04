@@ -68,21 +68,30 @@ export const register = async (req, res, next) => {
 // @access  Public
 export const login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, username, password } = req.body;
+    const identifier = (email || username || '').trim().toLowerCase();
 
-    if (!email || !password) {
+    if (!identifier || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide both email and password',
+        message: 'Please provide both username/email and password',
       });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
+    // Support both username 'admin' and email addresses
+    const user = await User.findOne({
+      $or: [
+        { email: identifier },
+        ...(identifier === 'admin'
+          ? [{ email: 'admin@hospital.com' }, { email: 'admin@hospital.local' }]
+          : []),
+      ],
+    }).select('+password');
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password credentials',
+        message: 'Invalid username/email or password credentials',
       });
     }
 
@@ -97,7 +106,7 @@ export const login = async (req, res, next) => {
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password credentials',
+        message: 'Invalid username/email or password credentials',
       });
     }
 
@@ -186,21 +195,32 @@ export const updateUser = async (req, res, next) => {
   }
 };
 
-// @desc    Seed initial default admin if database is empty
+// @desc    Seed initial default admin if database is empty or ensure admin123 password
 // @route   POST /api/auth/seed-admin
-// @access  Public (Only executes if zero users exist)
+// @access  Public
 export const seedInitialAdmin = async () => {
   try {
-    const count = await User.countDocuments();
-    if (count === 0) {
+    let admin = await User.findOne({
+      $or: [{ email: 'admin@hospital.com' }, { email: 'admin@hospital.local' }],
+    }).select('+password');
+
+    if (!admin) {
       await User.create({
         name: 'Hospital Administrator',
         email: 'admin@hospital.com',
-        password: 'adminPassword123!',
+        password: 'admin123',
         role: 'admin',
         status: 'active',
       });
-      console.log('[Auth] Default administrator initialized: admin@hospital.com / adminPassword123!');
+      console.log('[Auth] Default administrator initialized: admin / admin123');
+    } else {
+      // Ensure password matches admin123
+      const isMatch = await admin.matchPassword('admin123');
+      if (!isMatch) {
+        admin.password = 'admin123';
+        await admin.save();
+        console.log('[Auth] Default administrator password synchronized to: admin123');
+      }
     }
   } catch (err) {
     console.error('[Auth] Error checking initial admin seed:', err.message);
