@@ -84,28 +84,46 @@ export const formatTimeDisplay = (timeStr) => {
 };
 
 /**
- * Format 24h / 12h time into clean Hospital format e.g. "20.50PM" or "12.35AM"
+ * Format 24h / 12h time into clean 12-hour Hospital format e.g. "07.31PM" or "12.35AM"
  */
 export const formatHospitalTime = (timeStr) => {
   if (!timeStr) return '';
   const trimmed = timeStr.trim().toUpperCase();
-  
-  // If already formatted like 20.50PM or 08:30 PM, return cleaned
-  if (trimmed.includes('AM') || trimmed.includes('PM')) {
-    return trimmed.replace(':', '.').replace(/\s+/g, '');
+
+  // If already formatted like 19.31PM, 07:31 PM, or 07.31PM, convert hours to 12-hr
+  const ampmMatch = trimmed.match(/^(\d{1,2})[:.](\d{2})\s*(AM|PM)?$/i);
+  if (ampmMatch) {
+    let h = parseInt(ampmMatch[1], 10);
+    const m = ampmMatch[2];
+    const p = ampmMatch[3] ? ampmMatch[3].toUpperCase() : (h >= 12 ? 'PM' : 'AM');
+    if (h > 12) h = h % 12 || 12;
+    if (h === 0) h = 12;
+    return `${String(h).padStart(2, '0')}.${m}${p}`;
   }
 
-  // If in HH:MM or HH.MM 24hr format
+  // Parse 24-hr format (HH:MM or HH.MM)
   const parts = trimmed.split(/[:.]/);
   if (parts.length >= 2) {
-    const hours = parseInt(parts[0], 10);
-    const mins = parts[1].padStart(2, '0');
+    let hours = parseInt(parts[0], 10);
+    const mins = parts[1].slice(0, 2).padStart(2, '0');
     if (!isNaN(hours)) {
       const period = hours >= 12 ? 'PM' : 'AM';
-      const formattedHours = String(hours).padStart(2, '0');
-      return `${formattedHours}.${mins}${period}`;
+      hours = hours % 12 || 12; // convert 19 -> 07, 0 -> 12
+      return `${String(hours).padStart(2, '0')}.${mins}${period}`;
     }
   }
 
   return trimmed;
+};
+
+/**
+ * Get current time formatted strictly in 12-hour hospital format (e.g. 07.35PM)
+ */
+export const getCurrentHospitalTime = () => {
+  const now = new Date();
+  let hours = now.getHours();
+  const mins = String(now.getMinutes()).padStart(2, '0');
+  const period = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12 || 12;
+  return `${String(hours).padStart(2, '0')}.${mins}${period}`;
 };

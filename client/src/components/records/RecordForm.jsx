@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { recordsApi } from '../../services/recordsApi';
 import { useToast } from '../../context/ToastContext';
 import { useSettings } from '../../context/SettingsContext';
-import { formatDateForInput } from '../../utils/dateUtils';
+import { formatDateForInput, getCurrentHospitalTime, formatHospitalTime } from '../../utils/dateUtils';
 import { DuplicateWarning } from './DuplicateWarning';
 import {
   Save,
@@ -34,22 +34,19 @@ export const RecordForm = ({
         patientId: String(initialData.patientId || ''),
         patientName: initialData.patientName || '',
         date: formatDateForInput(initialData.date),
-        time: initialData.time || '',
+        time: formatHospitalTime(initialData.time) || '',
         remark: initialData.remark || '100',
       };
     }
 
     const now = new Date();
-    const hours = String(now.getHours()).padStart(2, '0');
-    const mins = String(now.getMinutes()).padStart(2, '0');
-    const period = now.getHours() >= 12 ? 'PM' : 'AM';
 
     return {
       sl: '',
       patientId: '',
       patientName: '',
       date: formatDateForInput(now),
-      time: `${hours}.${mins}${period}`,
+      time: getCurrentHospitalTime(),
       remark: '100',
     };
   };
@@ -194,17 +191,13 @@ export const RecordForm = ({
         const nextSequentialSl = savedSl + 1;
         setAutoSlNumber(nextSequentialSl);
 
-        const now = new Date();
-        const hours = String(now.getHours()).padStart(2, '0');
-        const mins = String(now.getMinutes()).padStart(2, '0');
-
         setFormData({
           sl: nextSequentialSl,
           patientId: '',
           patientName: '',
           date: formData.date, // keep same date for rapid batch entries
-          time: `${hours}:${mins}`,
-          remark: '',
+          time: getCurrentHospitalTime(),
+          remark: '100',
           _isAutoSl: true,
         });
         setDuplicateInfo(null);
@@ -354,20 +347,16 @@ export const RecordForm = ({
           <div className="flex items-center justify-between">
             <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-brand-600" />
-              Time <span className="text-rose-500">*</span>
+              Time (12-Hour) <span className="text-rose-500">*</span>
             </label>
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => {
-                  const now = new Date();
-                  const h = String(now.getHours()).padStart(2, '0');
-                  const m = String(now.getMinutes()).padStart(2, '0');
-                  const p = now.getHours() >= 12 ? 'PM' : 'AM';
-                  setFormData((prev) => ({ ...prev, time: `${h}.${m}${p}` }));
+                  setFormData((prev) => ({ ...prev, time: getCurrentHospitalTime() }));
                 }}
                 className="text-[10px] text-brand-700 hover:text-brand-800 bg-brand-50 hover:bg-brand-100 px-1.5 py-0.5 rounded font-medium transition-colors"
-                title="Set current time"
+                title="Set current 12-hour time"
               >
                 Now
               </button>
@@ -394,7 +383,7 @@ export const RecordForm = ({
               name="time"
               value={formData.time}
               onChange={handleChange}
-              placeholder="e.g. 20.50PM or 12.35AM"
+              placeholder="e.g. 07.30PM or 12.35AM"
               className={`w-full rounded-lg border font-mono px-3 py-2 text-sm text-slate-900 focus-ring ${
                 errors.time ? 'border-rose-300 bg-rose-50/40' : 'border-slate-300'
               }`}
@@ -406,9 +395,10 @@ export const RecordForm = ({
                 onChange={(e) => {
                   if (!e.target.value) return;
                   const [hStr, mStr] = e.target.value.split(':');
-                  const hNum = parseInt(hStr, 10);
+                  let hNum = parseInt(hStr, 10);
                   const period = hNum >= 12 ? 'PM' : 'AM';
-                  const formatted = `${hStr}.${mStr}${period}`;
+                  hNum = hNum % 12 || 12;
+                  const formatted = `${String(hNum).padStart(2, '0')}.${mStr}${period}`;
                   setFormData((prev) => ({ ...prev, time: formatted }));
                 }}
                 className="w-9 h-9 p-1.5 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer text-xs"
