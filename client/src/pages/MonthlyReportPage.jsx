@@ -6,7 +6,7 @@ import { exportMonthlyReportToExcel } from '../services/excelService';
 import { exportMonthlyReportToPDF } from '../services/pdfService';
 import { ReportHeader } from '../components/reports/ReportHeader';
 import { MonthYearPicker } from '../components/layout/MonthYearPicker';
-import { formatDateDisplay, formatTimeDisplay } from '../utils/dateUtils';
+import { formatDateDotShort, formatHospitalTime } from '../utils/dateUtils';
 import { formatSL } from '../utils/formatters';
 import { TableSkeleton } from '../components/common/Skeleton';
 import { EmptyState } from '../components/common/EmptyState';
@@ -233,23 +233,23 @@ export const MonthlyReportPage = ({ onAddNew }) => {
                         </td>
 
                         {/* Patient Name */}
-                        <td className="py-2.5 px-4 font-semibold text-slate-800 print:text-black">
+                        <td className="py-2.5 px-4 font-semibold text-slate-800 uppercase print:text-black">
                           {rec.patientName}
                         </td>
 
                         {/* Date */}
-                        <td className="py-2.5 px-4 text-slate-700 print:text-black">
-                          {formatDateDisplay(rec.date)}
+                        <td className="py-2.5 px-4 text-slate-700 font-medium print:text-black">
+                          {formatDateDotShort(rec.date)}
                         </td>
 
                         {/* Time */}
-                        <td className="py-2.5 px-4 text-slate-700 font-medium print:text-black">
-                          {formatTimeDisplay(rec.time)}
+                        <td className="py-2.5 px-4 text-slate-700 font-mono font-medium print:text-black">
+                          {formatHospitalTime(rec.time)}
                         </td>
 
                         {/* Remark */}
-                        <td className="py-2.5 px-4 text-slate-600 print:text-black">
-                          {rec.remark || '-'}
+                        <td className="py-2.5 px-4 font-bold text-slate-800 print:text-black">
+                          {rec.remark || '100'}
                         </td>
                       </tr>
                     );

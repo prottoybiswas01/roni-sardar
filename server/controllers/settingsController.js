@@ -9,11 +9,15 @@ export const getSettings = async (req, res, next) => {
 
     if (!settings) {
       settings = await Settings.create({
-        hospitalName: 'GENERAL HOSPITAL & MEDICAL CENTER',
-        location: 'DEPARTMENT OF OVER DUTY SERVICES, LEVEL 3',
+        hospitalName: 'Ad-din Akij Medical College Hospital',
+        location: 'Boyra, Khulna',
         reportTitle: 'OVER DUTY / PATIENT REPORT',
         checkDuplicates: true,
       });
+    } else if (settings.hospitalName === 'GENERAL HOSPITAL & MEDICAL CENTER') {
+      settings.hospitalName = 'Ad-din Akij Medical College Hospital';
+      settings.location = 'Boyra, Khulna';
+      await settings.save();
     }
 
     res.status(200).json({

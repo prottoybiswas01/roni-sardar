@@ -12,8 +12,8 @@ export const SettingsProvider = ({ children }) => {
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
 
   const [settings, setSettings] = useState({
-    hospitalName: 'GENERAL HOSPITAL & MEDICAL CENTER',
-    location: 'DEPARTMENT OF OVER DUTY SERVICES, LEVEL 3',
+    hospitalName: 'Ad-din Akij Medical College Hospital',
+    location: 'Boyra, Khulna',
     reportTitle: 'OVER DUTY / PATIENT REPORT',
     checkDuplicates: true,
   });

@@ -35,21 +35,22 @@ export const RecordForm = ({
         patientName: initialData.patientName || '',
         date: formatDateForInput(initialData.date),
         time: initialData.time || '',
-        remark: initialData.remark || '',
+        remark: initialData.remark || '100',
       };
     }
 
     const now = new Date();
     const hours = String(now.getHours()).padStart(2, '0');
     const mins = String(now.getMinutes()).padStart(2, '0');
+    const period = now.getHours() >= 12 ? 'PM' : 'AM';
 
     return {
       sl: '',
       patientId: '',
       patientName: '',
       date: formatDateForInput(now),
-      time: `${hours}:${mins}`,
-      remark: '',
+      time: `${hours}.${mins}${period}`,
+      remark: '100',
     };
   };
 
@@ -230,19 +231,23 @@ export const RecordForm = ({
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* SL (Serial Number) - Automatic sequential numbering */}
+        {/* SL (Serial Number) - Automatic sequential numbering / Locked in Edit Mode */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
               <Hash className="w-3.5 h-3.5 text-brand-600" />
               SL (Serial Number)
             </label>
-            {autoSlNumber && !initialData && (
+            {initialData ? (
+              <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                Fixed (Locked)
+              </span>
+            ) : autoSlNumber ? (
               <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                 <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
                 Auto #{autoSlNumber}
               </span>
-            )}
+            ) : null}
           </div>
           <div className="relative">
             <input
@@ -250,8 +255,14 @@ export const RecordForm = ({
               name="sl"
               value={formData.sl}
               onChange={handleChange}
+              disabled={Boolean(initialData)}
+              readOnly={Boolean(initialData)}
               placeholder={isAutoSlLoading ? 'Calculating SL...' : (autoSlNumber ? `Auto #${autoSlNumber}` : 'Auto-generated')}
-              className="w-full rounded-lg border border-slate-300 bg-slate-50/90 px-3 py-2 text-sm text-slate-800 font-semibold focus-ring"
+              className={`w-full rounded-lg border px-3 py-2 text-sm font-semibold focus-ring ${
+                initialData
+                  ? 'border-slate-200 bg-slate-100 text-slate-600 cursor-not-allowed'
+                  : 'border-slate-300 bg-slate-50/90 text-slate-800'
+              }`}
             />
             {!initialData && autoSlNumber && Number(formData.sl) !== Number(autoSlNumber) && (
               <button
@@ -265,7 +276,9 @@ export const RecordForm = ({
             )}
           </div>
           <p className="text-[10px] text-slate-500">
-            {formData._isAutoSl !== false && autoSlNumber
+            {initialData
+              ? 'Serial number cannot be modified in edit mode'
+              : formData._isAutoSl !== false && autoSlNumber
               ? '✨ Next monthly sequential number auto-assigned'
               : 'Sequential monthly number (auto-increments on save)'}
           </p>
@@ -285,7 +298,7 @@ export const RecordForm = ({
             name="patientId"
             value={formData.patientId}
             onChange={handleChange}
-            placeholder="e.g. 001234 or 0250474"
+            placeholder="e.g. 001234 or 250474"
             className={`w-full rounded-lg border font-mono px-3 py-2 text-sm text-slate-900 focus-ring ${
               errors.patientId ? 'border-rose-300 bg-rose-50/40' : 'border-slate-300'
             }`}
@@ -306,8 +319,8 @@ export const RecordForm = ({
             name="patientName"
             value={formData.patientName}
             onChange={handleChange}
-            placeholder="Enter patient full name"
-            className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 focus-ring ${
+            placeholder="e.g. B/O TONNI or ISLAM"
+            className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 uppercase focus-ring ${
               errors.patientName ? 'border-rose-300 bg-rose-50/40' : 'border-slate-300'
             }`}
           />
@@ -336,41 +349,97 @@ export const RecordForm = ({
           )}
         </div>
 
-        {/* Time */}
+        {/* Time with Clock Picker & AM/PM Controls */}
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5 text-brand-600" />
-            Time <span className="text-rose-500">*</span>
-          </label>
-          <input
-            type="text"
-            name="time"
-            value={formData.time}
-            onChange={handleChange}
-            placeholder="e.g. 14:30 or 02:30 PM"
-            className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 focus-ring ${
-              errors.time ? 'border-rose-300 bg-rose-50/40' : 'border-slate-300'
-            }`}
-          />
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-brand-600" />
+              Time <span className="text-rose-500">*</span>
+            </label>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  const now = new Date();
+                  const h = String(now.getHours()).padStart(2, '0');
+                  const m = String(now.getMinutes()).padStart(2, '0');
+                  const p = now.getHours() >= 12 ? 'PM' : 'AM';
+                  setFormData((prev) => ({ ...prev, time: `${h}.${m}${p}` }));
+                }}
+                className="text-[10px] text-brand-700 hover:text-brand-800 bg-brand-50 hover:bg-brand-100 px-1.5 py-0.5 rounded font-medium transition-colors"
+                title="Set current time"
+              >
+                Now
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setFormData((prev) => {
+                    const cur = prev.time || '';
+                    if (cur.includes('PM')) return { ...prev, time: cur.replace('PM', 'AM') };
+                    if (cur.includes('AM')) return { ...prev, time: cur.replace('AM', 'PM') };
+                    return { ...prev, time: cur + 'AM' };
+                  });
+                }}
+                className="text-[10px] text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded font-medium transition-colors"
+                title="Toggle AM / PM"
+              >
+                AM/PM
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="text"
+              name="time"
+              value={formData.time}
+              onChange={handleChange}
+              placeholder="e.g. 20.50PM or 12.35AM"
+              className={`w-full rounded-lg border font-mono px-3 py-2 text-sm text-slate-900 focus-ring ${
+                errors.time ? 'border-rose-300 bg-rose-50/40' : 'border-slate-300'
+              }`}
+            />
+            {/* Clock wheel trigger */}
+            <div className="relative" title="Pick from Clock">
+              <input
+                type="time"
+                onChange={(e) => {
+                  if (!e.target.value) return;
+                  const [hStr, mStr] = e.target.value.split(':');
+                  const hNum = parseInt(hStr, 10);
+                  const period = hNum >= 12 ? 'PM' : 'AM';
+                  const formatted = `${hStr}.${mStr}${period}`;
+                  setFormData((prev) => ({ ...prev, time: formatted }));
+                }}
+                className="w-9 h-9 p-1.5 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer text-xs"
+              />
+            </div>
+          </div>
           {errors.time && (
             <p className="text-[11px] text-rose-600 font-medium">{errors.time}</p>
           )}
         </div>
 
-        {/* Remark */}
+        {/* Remark / Ranking - Fixed to 100 & Non-editable */}
         <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
-          <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-            <FileText className="w-3.5 h-3.5 text-slate-400" />
-            Remark / Notes
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+              <FileText className="w-3.5 h-3.5 text-slate-400" />
+              Remark
+            </label>
+            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              Fixed (100)
+            </span>
+          </div>
           <input
             type="text"
             name="remark"
-            value={formData.remark}
-            onChange={handleChange}
-            placeholder="Duty notes, ward, department, or procedure"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus-ring"
+            value="100"
+            readOnly
+            disabled
+            className="w-full rounded-lg border border-slate-200 bg-slate-100/90 px-3 py-2 text-sm font-bold text-slate-700 cursor-not-allowed shadow-inner"
           />
+          <p className="text-[10px] text-slate-500">Fixed hospital standard rating (100)</p>
         </div>
       </div>
 

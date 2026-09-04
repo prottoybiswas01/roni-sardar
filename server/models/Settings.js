@@ -4,12 +4,12 @@ const settingsSchema = new mongoose.Schema(
   {
     hospitalName: {
       type: String,
-      default: 'GENERAL HOSPITAL & MEDICAL CENTER',
+      default: 'Ad-din Akij Medical College Hospital',
       trim: true,
     },
     location: {
       type: String,
-      default: 'DEPARTMENT OF OVER DUTY SERVICES, LEVEL 3',
+      default: 'Boyra, Khulna',
       trim: true,
     },
     reportTitle: {

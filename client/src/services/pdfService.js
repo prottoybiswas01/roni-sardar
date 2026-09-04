@@ -1,18 +1,18 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { formatDateDisplay, formatTimeDisplay, MONTHS } from '../utils/dateUtils';
+import { formatDateDotShort, formatHospitalTime, MONTHS } from '../utils/dateUtils';
 import { formatSL } from '../utils/formatters';
 
 /**
  * Generate and download a formatted PDF report for the selected month/year
- * Matching the professional hospital over duty record format
+ * Matching Ad-din Akij Medical College Hospital format
  */
 export const exportMonthlyReportToPDF = ({
   records = [],
   month,
   year,
-  hospitalName = 'GENERAL HOSPITAL & MEDICAL CENTER',
-  location = 'DEPARTMENT OF OVER DUTY SERVICES',
+  hospitalName = 'Ad-din Akij Medical College Hospital',
+  location = 'Boyra, Khulna',
 }) => {
   const monthObj = MONTHS.find((m) => m.value === Number(month));
   const monthName = monthObj ? monthObj.name.toUpperCase() : 'ALL';
@@ -29,13 +29,13 @@ export const exportMonthlyReportToPDF = ({
 
   // 1. Hospital Header
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
+  doc.setFontSize(13.5);
   doc.setTextColor(15, 23, 42); // slate-900
-  doc.text(hospitalName.toUpperCase(), pageWidth / 2, 16, { align: 'center' });
+  doc.text(hospitalName, pageWidth / 2, 16, { align: 'center' });
 
   // 2. Department / Location Subtitle
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9.5);
+  doc.setFontSize(10);
   doc.setTextColor(71, 85, 105); // slate-600
   doc.text(location, pageWidth / 2, 22, { align: 'center' });
 
@@ -61,10 +61,10 @@ export const exportMonthlyReportToPDF = ({
   const tableData = records.map((rec, index) => {
     const slVal = formatSL(rec.sl || index + 1);
     const idVal = String(rec.patientId || '');
-    const nameVal = String(rec.patientName || '');
-    const dateVal = formatDateDisplay(rec.date);
-    const timeVal = formatTimeDisplay(rec.time);
-    const remarkVal = String(rec.remark || '-');
+    const nameVal = String(rec.patientName || '').toUpperCase();
+    const dateVal = formatDateDotShort(rec.date);
+    const timeVal = formatHospitalTime(rec.time);
+    const remarkVal = String(rec.remark || '100');
 
     return [slVal, idVal, nameVal, dateVal, timeVal, remarkVal];
   });
@@ -72,7 +72,7 @@ export const exportMonthlyReportToPDF = ({
   // 5. Render AutoTable
   autoTable(doc, {
     startY: 40,
-    head: [['SL', 'ID', 'Patient Name', 'Date', 'TIME', 'Remark']],
+    head: [['SL', 'ID', 'Patient', 'Date', 'TIME', 'Remark']],
     body: tableData,
     theme: 'grid',
     headStyles: {
@@ -80,25 +80,25 @@ export const exportMonthlyReportToPDF = ({
       textColor: [255, 255, 255],
       fontStyle: 'bold',
       fontSize: 9,
-      halign: 'left',
+      halign: 'center',
       cellPadding: 2.5,
     },
     bodyStyles: {
       textColor: [30, 41, 59], // Slate 800
       fontSize: 8.5,
       cellPadding: 2.2,
-      lineColor: [226, 232, 240], // Slate 200
+      lineColor: [203, 213, 225], // Slate 300
     },
     alternateRowStyles: {
       fillColor: [248, 250, 252], // Slate 50
     },
     columnStyles: {
       0: { halign: 'center', cellWidth: 14, fontStyle: 'bold' }, // SL
-      1: { cellWidth: 26, fontStyle: 'bold', textColor: [2, 132, 199] }, // ID
-      2: { cellWidth: 46 }, // Patient Name
-      3: { cellWidth: 24, halign: 'center' }, // Date
-      4: { cellWidth: 20, halign: 'center' }, // TIME
-      5: { cellWidth: 'auto' }, // Remark
+      1: { cellWidth: 26, fontStyle: 'bold', textColor: [15, 23, 42] }, // ID
+      2: { cellWidth: 50 }, // Patient
+      3: { cellWidth: 24, halign: 'center' }, // Date (01.08.26)
+      4: { cellWidth: 24, halign: 'center' }, // TIME (20.50PM)
+      5: { cellWidth: 20, halign: 'center', fontStyle: 'bold' }, // Remark (100)
     },
     didDrawPage: (data) => {
       // Footer page numbering
@@ -115,6 +115,6 @@ export const exportMonthlyReportToPDF = ({
   });
 
   // 6. Save and Download
-  const fileName = `OVER_DUTY_${monthName}_${year}.pdf`;
+  const fileName = `${monthName}-${year}.pdf`;
   doc.save(fileName);
 };

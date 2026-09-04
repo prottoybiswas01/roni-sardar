@@ -3,19 +3,19 @@ import { formatMonthYearHeader } from '../../utils/dateUtils';
 import { Building2, MapPin, Calendar } from 'lucide-react';
 
 export const ReportHeader = ({
-  hospitalName = 'GENERAL HOSPITAL & MEDICAL CENTER',
-  location = 'DEPARTMENT OF OVER DUTY SERVICES',
+  hospitalName = 'Ad-din Akij Medical College Hospital',
+  location = 'Boyra, Khulna',
   reportTitle = 'OVER DUTY / PATIENT REPORT',
   month,
   year,
   recordCount = 0,
 }) => {
   return (
-    <div className="bg-white p-6 sm:p-8 rounded-xl border border-slate-200/80 shadow-subtle text-center space-y-3 print-card">
+    <div className="bg-white p-6 sm:p-8 rounded-xl border border-slate-200/80 shadow-subtle text-center space-y-2.5 print-card">
       {/* Hospital Name */}
       <div className="flex items-center justify-center gap-2">
         <Building2 className="w-5 h-5 text-brand-600 print:hidden" />
-        <h2 className="text-lg sm:text-xl font-extrabold uppercase tracking-wide text-slate-900">
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
           {hospitalName}
         </h2>
       </div>
@@ -27,8 +27,8 @@ export const ReportHeader = ({
       </div>
 
       {/* Month & Year Banner */}
-      <div className="pt-2 border-t border-slate-100 print:border-slate-800">
-        <div className="inline-block bg-slate-900 text-white font-mono text-xs sm:text-sm font-bold tracking-wider px-4 py-1.5 rounded-lg shadow-sm print:bg-transparent print:text-black print:p-0 print:border-b print:border-black">
+      <div className="pt-2">
+        <div className="inline-block border-b-2 border-slate-800 text-slate-900 font-bold text-sm sm:text-base tracking-wide px-6 py-1">
           {formatMonthYearHeader(month, year)}
         </div>
       </div>

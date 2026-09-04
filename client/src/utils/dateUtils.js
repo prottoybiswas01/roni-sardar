@@ -63,9 +63,49 @@ export const formatDateForInput = (dateInput) => {
 };
 
 /**
- * Format standard time e.g., "14:30" or "02:30 PM"
+ * Format date in dot short notation (DD.MM.YY) matching hospital records e.g. "01.08.26"
+ */
+export const formatDateDotShort = (dateInput) => {
+  if (!dateInput) return '-';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '-';
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = String(d.getFullYear()).slice(-2);
+  return `${day}.${month}.${year}`;
+};
+
+/**
+ * Format standard time e.g., "14:30" or "20.50PM"
  */
 export const formatTimeDisplay = (timeStr) => {
   if (!timeStr) return '-';
   return timeStr.trim();
+};
+
+/**
+ * Format 24h / 12h time into clean Hospital format e.g. "20.50PM" or "12.35AM"
+ */
+export const formatHospitalTime = (timeStr) => {
+  if (!timeStr) return '';
+  const trimmed = timeStr.trim().toUpperCase();
+  
+  // If already formatted like 20.50PM or 08:30 PM, return cleaned
+  if (trimmed.includes('AM') || trimmed.includes('PM')) {
+    return trimmed.replace(':', '.').replace(/\s+/g, '');
+  }
+
+  // If in HH:MM or HH.MM 24hr format
+  const parts = trimmed.split(/[:.]/);
+  if (parts.length >= 2) {
+    const hours = parseInt(parts[0], 10);
+    const mins = parts[1].padStart(2, '0');
+    if (!isNaN(hours)) {
+      const period = hours >= 12 ? 'PM' : 'AM';
+      const formattedHours = String(hours).padStart(2, '0');
+      return `${formattedHours}.${mins}${period}`;
+    }
+  }
+
+  return trimmed;
 };

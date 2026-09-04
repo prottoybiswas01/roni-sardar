@@ -1,40 +1,41 @@
 import * as XLSX from 'xlsx';
-import { formatDateDisplay, MONTHS } from '../utils/dateUtils';
+import { formatDateDotShort, formatHospitalTime, MONTHS } from '../utils/dateUtils';
 
 /**
  * Generate and download a formatted Excel report for the selected month/year
- * Guarantees leading zeros on Patient ID are preserved as string types
+ * Matching Ad-din Akij Medical College Hospital format
  */
 export const exportMonthlyReportToExcel = ({
   records = [],
   month,
   year,
-  hospitalName = 'GENERAL HOSPITAL & MEDICAL CENTER',
-  location = 'DEPARTMENT OF OVER DUTY SERVICES',
+  hospitalName = 'Ad-din Akij Medical College Hospital',
+  location = 'Boyra, Khulna',
 }) => {
   const monthObj = MONTHS.find((m) => m.value === Number(month));
   const monthName = monthObj ? monthObj.name.toUpperCase() : 'ALL';
   const monthYearString = `MONTH: ${monthName}-${year}`;
 
-  // 1. Build custom worksheet data structure
+  // 1. Build custom worksheet data structure matching the exact reference layout
   const wsData = [
-    [hospitalName],                                     // Row 1: Title
-    [location],                                         // Row 2: Subtitle / Location
-    [monthYearString],                                  // Row 3: Month/Year Banner
-    [],                                                 // Row 4: Empty space
-    ['SL', 'ID', 'Patient', 'Date', 'TIME', 'Remark'],  // Row 5: Column Headers
+    ['', '', hospitalName],                             // Row 1: Hospital Name
+    ['', '', location],                                 // Row 2: Location
+    [],                                                 // Row 3: Blank
+    ['', '', monthYearString],                          // Row 4: Month & Year Banner
+    [],                                                 // Row 5: Blank
+    ['SL', 'ID', 'Patient', 'Date', 'TIME', 'Remark'],  // Row 6: Column Headers
   ];
 
   // 2. Add records rows
   records.forEach((rec, idx) => {
     const sl = rec.sl || idx + 1;
     const patientId = String(rec.patientId || '');
-    const patientName = String(rec.patientName || '');
-    const dateFormatted = formatDateDisplay(rec.date);
-    const time = String(rec.time || '');
-    const remark = String(rec.remark || '');
+    const patientName = String(rec.patientName || '').toUpperCase();
+    const dateFormatted = formatDateDotShort(rec.date);
+    const timeFormatted = formatHospitalTime(rec.time);
+    const remark = rec.remark || '100';
 
-    wsData.push([sl, patientId, patientName, dateFormatted, time, remark]);
+    wsData.push([sl, patientId, patientName, dateFormatted, timeFormatted, remark]);
   });
 
   // 3. Create worksheet
@@ -42,7 +43,7 @@ export const exportMonthlyReportToExcel = ({
 
   // 4. Force Patient ID column (column index 1 / 'B') to be explicit string cell type
   // This guarantees leading zeros like '001234' or '0250474' never get converted to numbers
-  const startRowIndex = 5; // row index 5 in 0-based array is row 6 in Excel
+  const startRowIndex = 6; // row index 6 in 0-based array is row 7 in Excel (first record)
   for (let i = 0; i < records.length; i++) {
     const rowNum = startRowIndex + i + 1; // 1-indexed for SheetJS cell reference
     const cellRef = `B${rowNum}`;
@@ -54,27 +55,27 @@ export const exportMonthlyReportToExcel = ({
     };
   }
 
-  // 5. Merge header title rows across columns A through F
+  // 5. Merge header title rows across columns A through F for clean centering
   ws['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }, // Row 1 (A1:F1)
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } }, // Row 2 (A2:F2)
-    { s: { r: 2, c: 0 }, e: { r: 2, c: 5 } }, // Row 3 (A3:F3)
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }, // Row 1 (A1:F1) Hospital Name
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } }, // Row 2 (A2:F2) Location
+    { s: { r: 3, c: 0 }, e: { r: 3, c: 5 } }, // Row 4 (A4:F4) Month & Year Banner
   ];
 
   // 6. Set professional column widths
   ws['!cols'] = [
     { wch: 8 },   // SL
-    { wch: 16 },  // ID
-    { wch: 28 },  // Patient Name
-    { wch: 14 },  // Date
-    { wch: 12 },  // Time
-    { wch: 32 },  // Remark
+    { wch: 14 },  // ID
+    { wch: 26 },  // Patient Name
+    { wch: 14 },  // Date (01.08.26)
+    { wch: 14 },  // TIME (20.50PM)
+    { wch: 10 },  // Remark (100)
   ];
 
   // 7. Create workbook and trigger download
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, `${monthName}_${year}`);
+  XLSX.utils.book_append_sheet(wb, ws, `${monthName}-${year}`);
 
-  const fileName = `OVER_DUTY_${monthName}_${year}.xlsx`;
+  const fileName = `${monthName}-${year}.xlsx`;
   XLSX.writeFile(wb, fileName);
 };

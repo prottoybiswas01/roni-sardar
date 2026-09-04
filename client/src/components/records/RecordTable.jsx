@@ -1,5 +1,5 @@
 import React from 'react';
-import { formatDateDisplay, formatTimeDisplay } from '../../utils/dateUtils';
+import { formatDateDotShort, formatHospitalTime } from '../../utils/dateUtils';
 import { formatSL } from '../../utils/formatters';
 import { TableSkeleton } from '../common/Skeleton';
 import { EmptyState } from '../common/EmptyState';
@@ -103,18 +103,18 @@ export const RecordTable = ({
                     </td>
 
                     {/* Date */}
-                    <td className="py-3 px-4 text-xs text-slate-600">
-                      {formatDateDisplay(record.date)}
+                    <td className="py-3 px-4 text-xs font-medium text-slate-700">
+                      {formatDateDotShort(record.date)}
                     </td>
 
                     {/* Time */}
-                    <td className="py-3 px-4 text-xs font-medium text-slate-700">
-                      {formatTimeDisplay(record.time)}
+                    <td className="py-3 px-4 text-xs font-mono font-medium text-slate-800">
+                      {formatHospitalTime(record.time)}
                     </td>
 
                     {/* Remark */}
-                    <td className="py-3 px-4 text-xs text-slate-600 max-w-xs truncate">
-                      {record.remark || <span className="text-slate-300 italic">None</span>}
+                    <td className="py-3 px-4 text-xs font-bold text-slate-700">
+                      {record.remark || '100'}
                     </td>
 
                     {/* Action buttons */}
@@ -202,21 +202,19 @@ export const RecordTable = ({
               <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
                 <div className="flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                  <span>{formatDateDisplay(record.date)}</span>
+                  <span className="font-medium">{formatDateDotShort(record.date)}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5 text-slate-400" />
-                  <span>{formatTimeDisplay(record.time)}</span>
+                  <span className="font-mono font-medium">{formatHospitalTime(record.time)}</span>
                 </div>
               </div>
 
               {/* Remark */}
-              {record.remark && (
-                <div className="text-xs bg-slate-50 p-2 rounded-lg border border-slate-100 text-slate-600 flex items-start gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-                  <span className="break-words">{record.remark}</span>
-                </div>
-              )}
+              <div className="text-xs bg-slate-50 p-2 rounded-lg border border-slate-100 text-slate-700 flex items-center justify-between">
+                <span className="text-slate-400">Remark:</span>
+                <span className="font-bold text-slate-800">{record.remark || '100'}</span>
+              </div>
             </div>
           );
         })}
