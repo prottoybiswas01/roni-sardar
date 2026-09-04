@@ -6,10 +6,8 @@ import {
   Lock,
   Mail,
   User,
-  Shield,
   Loader2,
   ArrowRight,
-  Sparkles,
 } from 'lucide-react';
 
 export const LoginPage = () => {
@@ -19,8 +17,8 @@ export const LoginPage = () => {
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
-    email: 'admin',
-    password: 'admin123',
+    email: '',
+    password: '',
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -28,7 +26,7 @@ export const LoginPage = () => {
     e.preventDefault();
 
     if (!formData.email || !formData.password) {
-      toast.error('Please enter both email and password');
+      toast.error('Please enter both username/email and password');
       return;
     }
 
@@ -55,14 +53,6 @@ export const LoginPage = () => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleQuickDemoFill = (roleEmail, rolePass) => {
-    setFormData({
-      ...formData,
-      email: roleEmail,
-      password: rolePass,
-    });
   };
 
   return (
@@ -116,7 +106,7 @@ export const LoginPage = () => {
                 type="text"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="admin or staff@hospital.com"
+                placeholder="Enter username or email"
                 className="w-full rounded-xl border border-slate-600 bg-slate-900/60 px-3.5 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all"
                 required
               />
@@ -157,27 +147,16 @@ export const LoginPage = () => {
           <div className="mt-6 pt-4 border-t border-slate-700/60 text-center">
             <button
               type="button"
-              onClick={() => setIsRegisterMode(!isRegisterMode)}
+              onClick={() => {
+                setIsRegisterMode(!isRegisterMode);
+                setFormData({ name: '', email: '', password: '' });
+              }}
               className="text-xs text-brand-400 hover:text-brand-300 font-medium transition-colors"
             >
               {isRegisterMode
                 ? 'Already have credentials? Sign in'
                 : 'Need to register a new account? Click here'}
             </button>
-          </div>
-
-          {/* Quick Demo Access Hint */}
-          <div className="mt-4 p-3 rounded-xl bg-slate-900/70 border border-slate-700 text-[11px] text-slate-400 space-y-1">
-            <div className="flex items-center gap-1.5 font-semibold text-slate-300">
-              <Shield className="w-3 h-3 text-brand-400" />
-              Default Login Credentials:
-            </div>
-            <p>
-              Username: <code className="text-white font-mono">admin</code>
-            </p>
-            <p>
-              Password: <code className="text-white font-mono">admin123</code>
-            </p>
           </div>
         </div>
       </div>
