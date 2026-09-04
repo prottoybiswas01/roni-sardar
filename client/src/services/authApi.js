@@ -29,4 +29,10 @@ export const authApi = {
       body: JSON.stringify(data),
     });
   },
+
+  deleteUser: async (id) => {
+    return await apiClient(`/auth/users/${id}`, {
+      method: 'DELETE',
+    });
+  },
 };

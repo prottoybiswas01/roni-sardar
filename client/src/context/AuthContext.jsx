@@ -35,7 +35,6 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem('user', JSON.stringify(res.data));
           }
         } catch (err) {
-          // Token is invalid or expired
           logout();
         }
       }
@@ -60,15 +59,7 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     const res = await authApi.register(userData);
-    if (res.success && res.data) {
-      const { token: newToken, ...userPayload } = res.data;
-      setToken(newToken);
-      setUser(userPayload);
-      localStorage.setItem('token', newToken);
-      localStorage.setItem('user', JSON.stringify(userPayload));
-      return res.data;
-    }
-    throw new Error(res.message || 'Registration failed');
+    return res;
   };
 
   const logout = () => {
@@ -82,8 +73,9 @@ export const AuthProvider = ({ children }) => {
     user,
     token,
     role: user?.role || 'staff',
-    isAdmin: user?.role === 'admin',
-    isManager: user?.role === 'manager' || user?.role === 'admin',
+    isSuperAdmin: user?.role === 'superadmin',
+    isAdmin: user?.role === 'admin' || user?.role === 'superadmin',
+    isManager: user?.role === 'manager' || user?.role === 'admin' || user?.role === 'superadmin',
     isAuthenticated: Boolean(token && user),
     isLoading,
     login,

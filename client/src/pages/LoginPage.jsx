@@ -38,12 +38,14 @@ export const LoginPage = () => {
     try {
       setIsLoading(true);
       if (isRegisterMode) {
-        await register({
+        const res = await register({
           name: formData.name,
           email: formData.email,
           password: formData.password,
         });
-        toast.success('Registration successful. Welcome to OverDuty Pro!');
+        toast.success(res?.message || 'Registration submitted! Awaiting Super Admin approval.');
+        setIsRegisterMode(false);
+        setFormData({ name: '', email: formData.email, password: '' });
       } else {
         await login(formData.email, formData.password);
         toast.success('Welcome back! Logged in successfully.');

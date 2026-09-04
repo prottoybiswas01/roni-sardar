@@ -9,16 +9,17 @@ const userSchema = new mongoose.Schema(
       trim: true,
       maxlength: 100,
     },
+    username: {
+      type: String,
+      trim: true,
+      lowercase: true,
+    },
     email: {
       type: String,
       required: [true, 'Please provide an email address'],
       unique: true,
       trim: true,
       lowercase: true,
-      match: [
-        /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-        'Please provide a valid email address',
-      ],
     },
     password: {
       type: String,
@@ -28,13 +29,13 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['admin', 'manager', 'staff'],
+      enum: ['superadmin', 'admin', 'manager', 'staff'],
       default: 'staff',
     },
     status: {
       type: String,
-      enum: ['active', 'inactive'],
-      default: 'active',
+      enum: ['active', 'pending', 'inactive'],
+      default: 'pending',
     },
   },
   {

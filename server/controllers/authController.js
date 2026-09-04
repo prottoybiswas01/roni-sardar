@@ -12,12 +12,12 @@ const generateToken = (id) => {
   );
 };
 
-// @desc    Register a new user / initial admin
+// @desc    Register a new user (New users default to pending status awaiting Super Admin approval)
 // @route   POST /api/auth/register
-// @access  Public (or Admin for role assignment)
+// @access  Public
 export const register = async (req, res, next) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({
@@ -26,7 +26,8 @@ export const register = async (req, res, next) => {
       });
     }
 
-    const userExists = await User.findOne({ email: email.toLowerCase() });
+    const trimmedEmail = email.trim().toLowerCase();
+    const userExists = await User.findOne({ email: trimmedEmail });
     if (userExists) {
       return res.status(400).json({
         success: false,
@@ -34,28 +35,25 @@ export const register = async (req, res, next) => {
       });
     }
 
-    // Check if this is the first user in the system -> make admin
-    const userCount = await User.countDocuments();
-    const assignedRole = userCount === 0 ? 'admin' : (role || 'staff');
-
+    // New user registration starts with 'pending' status
     const user = await User.create({
-      name,
-      email: email.toLowerCase(),
+      name: name.trim(),
+      email: trimmedEmail,
+      username: trimmedEmail.split('@')[0],
       password,
-      role: assignedRole,
+      role: 'staff',
+      status: 'pending',
     });
-
-    const token = generateToken(user._id);
 
     res.status(201).json({
       success: true,
-      message: 'Account created successfully',
+      message: 'Account registered successfully! Your account is pending Super Admin approval. Please contact the administrator to activate your account.',
       data: {
         _id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
-        token,
+        status: user.status,
       },
     });
   } catch (error) {
@@ -78,10 +76,11 @@ export const login = async (req, res, next) => {
       });
     }
 
-    // Support both username 'admin' and email addresses
+    // Support username 'admin', email addresses, and legacy admin logins
     const user = await User.findOne({
       $or: [
         { email: identifier },
+        { username: identifier },
         ...(identifier === 'admin'
           ? [{ email: 'admin@hospital.com' }, { email: 'admin@hospital.local' }]
           : []),
@@ -95,10 +94,19 @@ export const login = async (req, res, next) => {
       });
     }
 
+    // Check if account is still pending Super Admin approval
+    if (user.status === 'pending') {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account is pending Super Admin approval. Please contact the administrator to activate your account.',
+      });
+    }
+
+    // Check if account is deactivated
     if (user.status === 'inactive') {
       return res.status(403).json({
         success: false,
-        message: 'Account is deactivated. Contact an administrator.',
+        message: 'Account is deactivated. Please contact the Super Administrator.',
       });
     }
 
@@ -120,6 +128,7 @@ export const login = async (req, res, next) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        status: user.status,
         token,
       },
     });
@@ -143,9 +152,9 @@ export const getMe = async (req, res, next) => {
   }
 };
 
-// @desc    Get all users (for administrative user management)
+// @desc    Get all users (Super Admin & Admin only)
 // @route   GET /api/auth/users
-// @access  Private/Admin
+// @access  Private/Admin/SuperAdmin
 export const getUsers = async (req, res, next) => {
   try {
     const users = await User.find().select('-password').sort({ createdAt: -1 });
@@ -158,9 +167,9 @@ export const getUsers = async (req, res, next) => {
   }
 };
 
-// @desc    Update user status or role
+// @desc    Update user status or role (Super Admin & Admin only)
 // @route   PUT /api/auth/users/:id
-// @access  Private/Admin
+// @access  Private/Admin/SuperAdmin
 export const updateUser = async (req, res, next) => {
   try {
     const { role, status, name } = req.body;
@@ -171,6 +180,16 @@ export const updateUser = async (req, res, next) => {
         success: false,
         message: 'User not found',
       });
+    }
+
+    // Protect primary super admin from losing superadmin role or being deactivated
+    if (user.username === 'admin' || user.email === 'admin@hospital.com') {
+      if (status === 'inactive' || status === 'pending') {
+        return res.status(400).json({
+          success: false,
+          message: 'The main Super Administrator account cannot be deactivated',
+        });
+      }
     }
 
     if (role) user.role = role;
@@ -195,32 +214,71 @@ export const updateUser = async (req, res, next) => {
   }
 };
 
-// @desc    Seed initial default admin if database is empty or ensure admin123 password
+// @desc    Delete user account (Super Admin only)
+// @route   DELETE /api/auth/users/:id
+// @access  Private/SuperAdmin
+export const deleteUser = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    if (user.username === 'admin' || user.email === 'admin@hospital.com' || user.role === 'superadmin') {
+      return res.status(400).json({
+        success: false,
+        message: 'Super Administrator accounts cannot be deleted',
+      });
+    }
+
+    await User.findByIdAndDelete(req.params.id);
+
+    res.status(200).json({
+      success: true,
+      message: 'User deleted successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Seed or update default Super Administrator: admin / admin123
 // @route   POST /api/auth/seed-admin
 // @access  Public
 export const seedInitialAdmin = async () => {
   try {
     let admin = await User.findOne({
-      $or: [{ email: 'admin@hospital.com' }, { email: 'admin@hospital.local' }],
+      $or: [
+        { username: 'admin' },
+        { email: 'admin@hospital.com' },
+        { email: 'admin@hospital.local' },
+      ],
     }).select('+password');
 
     if (!admin) {
       await User.create({
-        name: 'Hospital Administrator',
+        name: 'Super Administrator',
+        username: 'admin',
         email: 'admin@hospital.com',
         password: 'admin123',
-        role: 'admin',
+        role: 'superadmin',
         status: 'active',
       });
-      console.log('[Auth] Default administrator initialized: admin / admin123');
+      console.log('[Auth] Default Super Administrator initialized: admin / admin123 (superadmin)');
     } else {
-      // Ensure password matches admin123
+      // Ensure superadmin role, active status, and admin123 password
+      admin.role = 'superadmin';
+      admin.status = 'active';
+      admin.username = 'admin';
       const isMatch = await admin.matchPassword('admin123');
       if (!isMatch) {
         admin.password = 'admin123';
-        await admin.save();
-        console.log('[Auth] Default administrator password synchronized to: admin123');
       }
+      await admin.save();
+      console.log('[Auth] Super Administrator synchronized: admin / admin123 (role: superadmin, status: active)');
     }
   } catch (err) {
     console.error('[Auth] Error checking initial admin seed:', err.message);

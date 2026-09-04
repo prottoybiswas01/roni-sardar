@@ -24,6 +24,13 @@ export const protect = async (req, res, next) => {
         });
       }
 
+      if (req.user.status === 'pending') {
+        return res.status(403).json({
+          success: false,
+          message: 'Your account is pending Super Admin approval. Please wait for activation.',
+        });
+      }
+
       if (req.user.status === 'inactive') {
         return res.status(403).json({
           success: false,
@@ -50,6 +57,10 @@ export const protect = async (req, res, next) => {
 
 export const authorize = (...roles) => {
   return (req, res, next) => {
+    // superadmin always has unrestricted access
+    if (req.user && req.user.role === 'superadmin') {
+      return next();
+    }
     if (!req.user || !roles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
