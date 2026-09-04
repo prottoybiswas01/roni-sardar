@@ -1,0 +1,20 @@
+{
+  "name": "over-duty-record-manager",
+  "version": "1.0.0",
+  "description": "Professional Hospital Over Duty / Patient Record Management System",
+  "main": "server/server.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server --prefix server\" \"npm run dev --prefix client\"",
+    "start": "node server/server.js",
+    "server": "npm run dev --prefix server",
+    "client": "npm run dev --prefix client",
+    "build": "npm run build --prefix client",
+    "install-all": "npm install && npm install --prefix server && npm install --prefix client"
+  },
+  "keywords": ["hospital", "over-duty", "patient-records", "ocr", "excel-report"],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
