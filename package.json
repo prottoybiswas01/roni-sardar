@@ -4,9 +4,12 @@
   "description": "Professional Hospital Over Duty / Patient Record Management System",
   "main": "server/server.js",
   "type": "module",
+  "workspaces": [
+    "client"
+  ],
   "scripts": {
     "start": "node server/server.js",
-    "build": "npm install --prefix client && npm run build --prefix client",
+    "build": "npm run build --prefix client",
     "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
     "server": "npm run dev --prefix server",
     "client": "npm run dev --prefix client"
