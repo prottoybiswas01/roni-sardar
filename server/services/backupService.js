@@ -99,10 +99,10 @@ export const sendResendEmail = async ({ apiKey, from, to, subject, html, text, a
     text ||
     (html
       ? html
-          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-          .replace(/<[^>]+>/g, ' ')
-          .replace(/\s{2,}/g, ' ')
-          .trim()
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim()
       : '');
 
   const payload = {
@@ -487,11 +487,10 @@ export const sendUserBackupEmail = async (
         <div style="padding: 26px 28px;">
           <h2 style="font-size: 16px; color: #0f172a; margin-top: 0;">Hello ${user.name},</h2>
           <p style="font-size: 13.5px; line-height: 1.6; color: #475569; margin-bottom: 20px;">
-            ${
-              isMonthlyClosing
-                ? `আপনার <strong>${monthLabel}</strong> মাসের সম্পূর্ণ মাসিক হিসাব ও ওভার ডিউটি স্টেটমেন্ট সফলভাবে প্রস্তুত করা হয়েছে। নিচে সারাংশ এবং সাথে <strong>PDF ও Excel উভয় ফাইল</strong> সংযুক্ত করা হলো:`
-                : `আপনার <strong>${monthLabel}</strong> পর্বের ওভার ডিউটি রোগীর রেকর্ড ও আর্থিক হিসাব বিবরণী নিচে তুলে ধরা হলো:`
-            }
+            ${isMonthlyClosing
+      ? `আপনার <strong>${monthLabel}</strong> মাসের সম্পূর্ণ মাসিক হিসাব ও ওভার ডিউটি স্টেটমেন্ট সফলভাবে প্রস্তুত করা হয়েছে। নিচে সারাংশ এবং সাথে <strong>PDF ও Excel উভয় ফাইল</strong> সংযুক্ত করা হলো:`
+      : `আপনার <strong>${monthLabel}</strong> পর্বের ওভার ডিউটি রোগীর রেকর্ড ও আর্থিক হিসাব বিবরণী নিচে তুলে ধরা হলো:`
+    }
           </p>
 
           <!-- 4-Box Metric Highlight Grid -->
@@ -1005,9 +1004,8 @@ export const sendShareReportEmail = async ({
             <strong>${targetUser.name}</strong> (${targetUser.role === 'superadmin' ? 'Super Admin' : 'Medical Staff / Doctor'}) আপনার সাথে <strong>${monthLabel}</strong> পর্বের ওভার ডিউটি রিপোর্ট শেয়ার করেছেন। নিচে সংক্ষিপ্ত বিবরণ দেওয়া হলো এবং সাথে <strong>${format === 'both' ? 'PDF ও Excel উভয় ফাইল' : format.toUpperCase() + ' ফাইল'}</strong> সংযুক্ত রয়েছে।
           </p>
 
-          ${
-            customNote && customNote.trim()
-              ? `
+          ${customNote && customNote.trim()
+      ? `
               <div style="background-color: #fefce8; border-left: 4px solid #eab308; padding: 12px 16px; border-radius: 6px; margin-bottom: 20px;">
                 <p style="margin: 0; font-size: 12px; font-weight: bold; color: #854d0e; text-transform: uppercase;">
                   📝 প্রেরকের বিশেষ নোট / বার্তা (Sender's Note):
@@ -1017,8 +1015,8 @@ export const sendShareReportEmail = async ({
                 </p>
               </div>
               `
-              : ''
-          }
+      : ''
+    }
 
           <!-- Metric Highlights Grid -->
           <table width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 20px;">
@@ -1063,13 +1061,13 @@ export const sendShareReportEmail = async ({
               📎 সংযুক্ত ফাইল (Attachments):
             </p>
             ${attachments
-              .map(
-                (att) => `
+      .map(
+        (att) => `
               <div style="display: flex; align-items: center; margin: 4px 0; font-size: 12.5px; color: #1e293b;">
                 📄 <strong>${att.filename}</strong> (${att.contentType === 'application/pdf' ? 'A4 Printable PDF' : 'Excel Spreadsheet'})
               </div>`
-              )
-              .join('')}
+      )
+      .join('')}
           </div>
 
           <div style="border-top: 1px solid #e2e8f0; padding-top: 16px; font-size: 11.5px; color: #64748b; line-height: 1.5;">
