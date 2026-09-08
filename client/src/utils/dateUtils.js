@@ -117,6 +117,72 @@ export const formatHospitalTime = (timeStr) => {
 };
 
 /**
+ * Parse time string to minutes from midnight (0 to 1439) for chronological sorting
+ */
+export const parseTimeToMinutes = (timeStr) => {
+  if (!timeStr) return 0;
+  const str = String(timeStr).trim().toUpperCase();
+  const match = str.match(/^(\d{1,2})[:.](\d{2})\s*(AM|PM)?$/i);
+  if (match) {
+    let hours = parseInt(match[1], 10);
+    const minutes = parseInt(match[2], 10) || 0;
+    const period = match[3] ? match[3].toUpperCase() : null;
+
+    if (period === 'PM' && hours < 12) hours += 12;
+    if (period === 'AM' && hours === 12) hours = 0;
+    if (!period && hours > 23) hours = 23;
+
+    return hours * 60 + minutes;
+  }
+
+  const parts = str.split(/[:.]/);
+  if (parts.length >= 2) {
+    let h = parseInt(parts[0], 10) || 0;
+    let m = parseInt(parts[1], 10) || 0;
+    if (str.includes('PM') && h < 12) h += 12;
+    if (str.includes('AM') && h === 12) h = 0;
+    return h * 60 + m;
+  }
+
+  return 0;
+};
+
+/**
+ * Sorts records strictly in chronological order:
+ * 1. Date ascending (1st of month to end of month)
+ * 2. Time ascending (00:00 to 23:59)
+ * 3. Tiebreaker by original SL
+ * Re-assigns clean sequential serial numbers (SL: 1, 2, 3...)
+ */
+export const sortRecordsChronologically = (records = []) => {
+  return [...records]
+    .sort((a, b) => {
+      // 1. Compare Date
+      const dateA = a.date ? new Date(a.date).getTime() : 0;
+      const dateB = b.date ? new Date(b.date).getTime() : 0;
+      if (dateA !== dateB) {
+        return dateA - dateB;
+      }
+
+      // 2. Compare Time (00:00 to 23:59)
+      const timeA = parseTimeToMinutes(a.time);
+      const timeB = parseTimeToMinutes(b.time);
+      if (timeA !== timeB) {
+        return timeA - timeB;
+      }
+
+      // 3. Tiebreaker by SL
+      const slA = Number(a.sl) || 0;
+      const slB = Number(b.sl) || 0;
+      return slA - slB;
+    })
+    .map((rec, index) => ({
+      ...rec,
+      sl: index + 1, // Auto sequential serial numbering
+    }));
+};
+
+/**
  * Get current time formatted strictly in 12-hour hospital format (e.g. 07.35PM)
  */
 export const getCurrentHospitalTime = () => {

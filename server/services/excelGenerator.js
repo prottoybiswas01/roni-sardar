@@ -1,6 +1,72 @@
 import ExcelJS from 'exceljs';
 
 /**
+ * Parse time string to minutes from midnight (0 to 1439) for chronological sorting
+ */
+export const parseTimeToMinutes = (timeStr) => {
+  if (!timeStr) return 0;
+  const str = String(timeStr).trim().toUpperCase();
+  const match = str.match(/^(\d{1,2})[:.](\d{2})\s*(AM|PM)?$/i);
+  if (match) {
+    let hours = parseInt(match[1], 10);
+    const minutes = parseInt(match[2], 10) || 0;
+    const period = match[3] ? match[3].toUpperCase() : null;
+
+    if (period === 'PM' && hours < 12) hours += 12;
+    if (period === 'AM' && hours === 12) hours = 0;
+    if (!period && hours > 23) hours = 23;
+
+    return hours * 60 + minutes;
+  }
+
+  const parts = str.split(/[:.]/);
+  if (parts.length >= 2) {
+    let h = parseInt(parts[0], 10) || 0;
+    let m = parseInt(parts[1], 10) || 0;
+    if (str.includes('PM') && h < 12) h += 12;
+    if (str.includes('AM') && h === 12) h = 0;
+    return h * 60 + m;
+  }
+
+  return 0;
+};
+
+/**
+ * Sorts records strictly in chronological order:
+ * 1. Date ascending (1st of month to end of month)
+ * 2. Time ascending (00:00 to 23:59, from midnight)
+ * 3. Tiebreaker by original SL
+ * Re-assigns clean sequential serial numbers (SL: 1, 2, 3...)
+ */
+export const sortRecordsChronologically = (records = []) => {
+  return [...records]
+    .sort((a, b) => {
+      // 1. Compare Date
+      const dateA = a.date ? new Date(a.date).getTime() : 0;
+      const dateB = b.date ? new Date(b.date).getTime() : 0;
+      if (dateA !== dateB) {
+        return dateA - dateB;
+      }
+
+      // 2. Compare Time (00:00 to 23:59)
+      const timeA = parseTimeToMinutes(a.time);
+      const timeB = parseTimeToMinutes(b.time);
+      if (timeA !== timeB) {
+        return timeA - timeB;
+      }
+
+      // 3. Tiebreaker by SL
+      const slA = Number(a.sl) || 0;
+      const slB = Number(b.sl) || 0;
+      return slA - slB;
+    })
+    .map((rec, index) => ({
+      ...rec,
+      sl: index + 1, // Auto sequential serial numbering
+    }));
+};
+
+/**
  * Generate a formatted Excel (.xlsx) buffer matching Ad-din Akij Medical College Hospital format
  * Row 1 (A1:F1): AD-DIN AKIJ MEDICAL COLLEGE HOSPITAL (Merged, Bold 14pt, Centered, Thin Border)
  * Row 2 (A2:F2): One Call (Merged, Bold 12pt, Centered, Thin Border)
@@ -8,14 +74,6 @@ import ExcelJS from 'exceljs';
  * Row 4 (A4:F4): Blank Gap (Merged, Thin Border)
  * Row 5: Column Headers: SL | Patient ID | Patient Name | Date | Time | Remark (Bold 11pt, Centered, Thin Border)
  * Rows 6+: Data rows with thin borders and leading-zero text preservation
- *
- * @param {Object} options
- * @param {Array} options.records
- * @param {string} options.hospitalName
- * @param {string} options.location
- * @param {number|string} options.month
- * @param {number|string} options.year
- * @returns {Promise<Buffer>} XLSX Buffer
  */
 export const generateMonthlyRecordsExcelBuffer = async ({
   records = [],
@@ -24,6 +82,9 @@ export const generateMonthlyRecordsExcelBuffer = async ({
   month = new Date().getMonth() + 1,
   year = new Date().getFullYear(),
 }) => {
+  // Sort all records strictly in chronological order (Date ascending, Time ascending from 1st of month 12:00 AM)
+  const sortedRecords = sortRecordsChronologically(records);
+
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Ad-din Hospital System';
   workbook.created = new Date();
@@ -119,7 +180,7 @@ export const generateMonthlyRecordsExcelBuffer = async ({
 
   // Rows 6+: Data rows with borders
   let currentRow = 6;
-  records.forEach((rec, idx) => {
+  sortedRecords.forEach((rec, idx) => {
     const sl = rec.sl || idx + 1;
     const patientId = String(rec.patientId || '');
     const patientName = String(rec.patientName || '').toUpperCase();
@@ -177,8 +238,9 @@ export const generateMonthlyRecordsExcelBuffer = async ({
  * Generate CSV representation of records for Excel without Month/Year columns
  */
 export const generateRecordsCSV = (records = []) => {
+  const sortedRecords = sortRecordsChronologically(records);
   const headers = ['SL', 'Patient ID', 'Patient Name', 'Date', 'Time', 'Remark'];
-  const rows = records.map((r, idx) => {
+  const rows = sortedRecords.map((r, idx) => {
     let dateStr = '';
     if (r.date) {
       const d = new Date(r.date);

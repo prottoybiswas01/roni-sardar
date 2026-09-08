@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { formatDateDotShort, formatHospitalTime, MONTHS } from '../utils/dateUtils';
+import { formatDateDotShort, formatHospitalTime, MONTHS, sortRecordsChronologically } from '../utils/dateUtils';
 import { formatSL } from '../utils/formatters';
 
 /**
@@ -12,6 +12,9 @@ export const createMonthlyReportPDFDoc = ({
   year,
   hospitalName = 'AD-DIN AKIJ MEDICAL COLLEGE HOSPITAL',
 }) => {
+  // Sort all records strictly in chronological order (Date ascending, Time ascending) & re-number SL 1..N
+  const sortedRecords = sortRecordsChronologically(records);
+
   const monthObj = MONTHS.find((m) => m.value === Number(month));
   const monthName = monthObj ? monthObj.name.toUpperCase() : 'ALL';
   const monthYearString =
@@ -20,10 +23,10 @@ export const createMonthlyReportPDFDoc = ({
       : `${monthName} ${year}`;
 
   const uniquePatients = new Set(
-    records.map((r) => String(r.patientId || '').trim()).filter(Boolean)
+    sortedRecords.map((r) => String(r.patientId || '').trim()).filter(Boolean)
   ).size;
 
-  const totalAmount = records.reduce((sum, r) => {
+  const totalAmount = sortedRecords.reduce((sum, r) => {
     const val = parseFloat(String(r.remark || '0').replace(/[^0-9.-]+/g, '')) || 0;
     return sum + val;
   }, 0);
@@ -62,14 +65,14 @@ export const createMonthlyReportPDFDoc = ({
   // 4. One-line Summary
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  const summaryText = `Total Records: ${records.length}   |   Unique Patients: ${uniquePatients}   |   Total Remark / Amount: Tk. ${totalAmount.toLocaleString()}`;
+  const summaryText = `Total Records: ${sortedRecords.length}   |   Unique Patients: ${uniquePatients}   |   Total Remark / Amount: Tk. ${totalAmount.toLocaleString()}`;
   doc.text(summaryText, pageWidth / 2, 29.5, { align: 'center' });
 
   // Divider Line 2
   doc.line(12, 32, pageWidth - 12, 32);
 
   // 5. Build Table Rows
-  const tableData = records.map((rec, index) => {
+  const tableData = sortedRecords.map((rec, index) => {
     const slVal = formatSL(rec.sl || index + 1);
     const idVal = String(rec.patientId || '');
     const nameVal = String(rec.patientName || 'PATIENT').toUpperCase();
@@ -88,7 +91,7 @@ export const createMonthlyReportPDFDoc = ({
     foot: [
       [
         {
-          content: `TOTAL ENTRIES: ${records.length}`,
+          content: `TOTAL ENTRIES: ${sortedRecords.length}`,
           colSpan: 5,
           styles: { halign: 'left', fontStyle: 'bold', fontSize: 8 },
         },

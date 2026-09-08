@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { MONTHS } from '../utils/dateUtils';
+import { MONTHS, sortRecordsChronologically } from '../utils/dateUtils';
 
 /**
  * Generate and download a formatted Excel (.xlsx) report matching Ad-din Akij Medical College Hospital format
@@ -17,6 +17,9 @@ export const exportMonthlyReportToExcel = async ({
   hospitalName = 'Ad-din Akij Medical College Hospital',
   location = 'Boyra, Khulna',
 }) => {
+  // Sort all records strictly in chronological order (Date ascending, Time ascending) & re-number SL 1..N
+  const sortedRecords = sortRecordsChronologically(records);
+
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Ad-din Hospital System';
   workbook.created = new Date();
@@ -106,7 +109,7 @@ export const exportMonthlyReportToExcel = async ({
 
   // Rows 6+: Data rows with borders
   let currentRow = 6;
-  records.forEach((rec, idx) => {
+  sortedRecords.forEach((rec, idx) => {
     const sl = rec.sl || idx + 1;
     const patientId = String(rec.patientId || '');
     const patientName = String(rec.patientName || '').toUpperCase();
