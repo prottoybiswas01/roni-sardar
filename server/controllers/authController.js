@@ -433,12 +433,12 @@ export const updateUser = async (req, res, next) => {
       });
     }
 
-    // Protect primary super admin from losing superadmin role or being deactivated
+    // Protect primary super admin from losing superadmin role or being deactivated / paused
     if (user.username === 'admin' || user.email === 'admin@hospital.com' || user.role === 'superadmin') {
-      if (status === 'inactive' || status === 'pending') {
+      if (status === 'inactive' || status === 'pending' || status === 'paused' || status === 'suspended') {
         return res.status(400).json({
           success: false,
-          message: 'The main Super Administrator account cannot be deactivated',
+          message: 'The main Super Administrator account cannot be paused or deactivated',
         });
       }
     }

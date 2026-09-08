@@ -108,6 +108,8 @@ export const AuthProvider = ({ children }) => {
     isSuperAdmin: user?.role === 'superadmin',
     isAdmin: user?.role === 'admin' || user?.role === 'superadmin',
     isManager: user?.role === 'manager' || user?.role === 'admin' || user?.role === 'superadmin',
+    isPaused: user?.status === 'paused' || user?.status === 'suspended',
+    userStatus: user?.status || 'active',
     isAuthenticated: Boolean(token && user),
     isLoading,
     login,

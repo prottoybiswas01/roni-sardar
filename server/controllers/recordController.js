@@ -191,6 +191,14 @@ export const getRecordById = async (req, res, next) => {
 // @access  Private
 export const createRecord = async (req, res, next) => {
   try {
+    // Check if user account is paused by Super Admin
+    if (req.user && (req.user.status === 'paused' || req.user.status === 'suspended')) {
+      return res.status(403).json({
+        success: false,
+        message: 'আপনার অ্যাকাউন্টটি সুপার অ্যাডমিন কর্তৃক সাময়িকভাবে স্থগিত (Paused) করা হয়েছে। আপনি নতুন ডাটা এন্ট্রি করতে পারবেন না।',
+      });
+    }
+
     let { patientId, patientName, date, time, remark, sl } = req.body;
 
     if (!patientId || !patientName || !date || !time) {
@@ -252,6 +260,13 @@ export const createRecord = async (req, res, next) => {
 // @access  Private
 export const updateRecord = async (req, res, next) => {
   try {
+    if (req.user && req.user.role !== 'superadmin' && (req.user.status === 'paused' || req.user.status === 'suspended')) {
+      return res.status(403).json({
+        success: false,
+        message: 'আপনার অ্যাকাউন্টটি স্থগিত (Paused) থাকায় ডাটা পরিবর্তন করা সম্ভব নয়।',
+      });
+    }
+
     let record = await Record.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
 
     if (!record) {
@@ -332,6 +347,13 @@ export const updateRecord = async (req, res, next) => {
 // @access  Private
 export const deleteRecord = async (req, res, next) => {
   try {
+    if (req.user && req.user.role !== 'superadmin' && (req.user.status === 'paused' || req.user.status === 'suspended')) {
+      return res.status(403).json({
+        success: false,
+        message: 'আপনার অ্যাকাউন্টটি স্থগিত (Paused) থাকায় রেকর্ড ডিলিট করা সম্ভব নয়।',
+      });
+    }
+
     const record = await Record.findById(req.params.id);
 
     if (!record || record.isDeleted) {

@@ -15,7 +15,7 @@ import { PlusCircle, Camera, Download, FileSpreadsheet, FileType } from 'lucide-
 
 export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
   const toast = useToast();
-  const { isSuperAdmin } = useAuth();
+  const { isSuperAdmin, isPaused } = useAuth();
   const { settings, selectedMonth, selectedYear, setSelectedMonth, setSelectedYear } = useSettings();
 
   const [records, setRecords] = useState([]);
@@ -178,8 +178,16 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
         <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="button"
-            onClick={onOpenScanner}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-sky-50 text-sky-800 border border-sky-200 hover:bg-sky-100 text-xs font-semibold shadow-subtle transition-colors"
+            disabled={isPaused}
+            onClick={() => {
+              if (isPaused) {
+                toast.warning('আপনার অ্যাকাউন্টটি স্থগিত (Paused) থাকায় স্ক্যান করা যাবে না।');
+                return;
+              }
+              onOpenScanner();
+            }}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-sky-50 text-sky-800 border border-sky-200 hover:bg-sky-100 text-xs font-semibold shadow-subtle transition-colors disabled:opacity-40"
+            title={isPaused ? 'অ্যাকাউন্ট স্থগিত রয়েছে' : undefined}
           >
             <Camera className="w-4 h-4 text-sky-600" />
             Scan
@@ -209,8 +217,16 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
 
           <button
             type="button"
-            onClick={onOpenAddPage}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold shadow-md shadow-brand-600/30 transition-all active:scale-95"
+            disabled={isPaused}
+            onClick={() => {
+              if (isPaused) {
+                toast.warning('আপনার অ্যাকাউন্টটি স্থগিত (Paused) থাকায় নতুন ডাটা এন্ট্রি করা যাবে না।');
+                return;
+              }
+              onOpenAddPage();
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold shadow-md shadow-brand-600/30 transition-all active:scale-95 disabled:opacity-40"
+            title={isPaused ? 'অ্যাকাউন্ট স্থগিত রয়েছে' : undefined}
           >
             <PlusCircle className="w-4 h-4" />
             Add Record

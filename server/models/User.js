@@ -34,7 +34,7 @@ const userSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['active', 'pending', 'inactive'],
+      enum: ['active', 'pending', 'inactive', 'paused', 'suspended'],
       default: 'pending',
     },
     autoEmailBackup: {

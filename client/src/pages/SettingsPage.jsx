@@ -45,6 +45,8 @@ import {
   HelpCircle,
   Check,
   Lock,
+  PauseCircle,
+  PlayCircle,
 } from 'lucide-react';
 
 export const SettingsPage = ({ initialTab = 'general' }) => {
@@ -366,6 +368,32 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
       fetchUsers();
     } catch (err) {
       toast.error('Failed to approve account: ' + err.message);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handlePauseUser = async (userId, userName) => {
+    try {
+      setActionLoadingId(userId);
+      await authApi.updateUser(userId, { status: 'paused' });
+      toast.warning(`"${userName}" এর অ্যাকাউন্ট সাময়িকভাবে স্থগিত (Paused) করা হয়েছে। ডাটা এন্ট্রি বন্ধ থাকবে।`);
+      fetchUsers();
+    } catch (err) {
+      toast.error('Failed to pause user account: ' + err.message);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleResumeUser = async (userId, userName) => {
+    try {
+      setActionLoadingId(userId);
+      await authApi.updateUser(userId, { status: 'active' });
+      toast.success(`"${userName}" এর অ্যাকাউন্ট পুনরায় সক্রিয় (Active) করা হয়েছে!`);
+      fetchUsers();
+    } catch (err) {
+      toast.error('Failed to resume user account: ' + err.message);
     } finally {
       setActionLoadingId(null);
     }
@@ -719,13 +747,17 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 animate-pulse">
                                 <Clock className="w-3 h-3 text-amber-600" /> Pending Approval
                               </span>
+                            ) : u.status === 'paused' || u.status === 'suspended' ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                <PauseCircle className="w-3 h-3 text-amber-700" /> Paused (স্থগিত)
+                              </span>
                             ) : u.status === 'active' ? (
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Active
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Active (সক্রিয়)
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
-                                <UserX className="w-3 h-3 text-rose-600" /> Inactive / Blocked
+                                <UserX className="w-3 h-3 text-rose-600" /> Deactivated (নিষ্ক্রিয়)
                               </span>
                             )}
                           </td>
@@ -763,7 +795,7 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                                 title="View this staff member's profile and over duty patient records"
                               >
                                 <Eye className="w-3.5 h-3.5 text-sky-600" />
-                                View Profile
+                                Profile
                               </button>
 
                               {/* Reset Password Button */}
@@ -773,18 +805,18 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                                   setPasswordResetUser(u);
                                   setNewPasswordValue('');
                                 }}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold shadow-subtle transition-all active:scale-95"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold shadow-subtle transition-all active:scale-95"
                                 title="Set a new password for this user"
                               >
-                                <KeyRound className="w-3.5 h-3.5 text-amber-600" />
-                                Reset Pass
+                                <KeyRound className="w-3.5 h-3.5 text-slate-500" />
+                                Pass
                               </button>
 
                               {/* One-click Approve & Activate button for Pending Users */}
                               {u.status === 'pending' && (
                                 <button
                                   type="button"
-                                  disabled={isLoading}
+                                  disabled={isLoading || actionLoadingId === u._id}
                                   onClick={() => handleApproveUser(u._id, u.name)}
                                   className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-all active:scale-95"
                                   title="Approve registration and activate account"
@@ -794,19 +826,47 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                                 </button>
                               )}
 
+                              {/* Pause / Resume Button for Super Admin */}
+                              {!isMainAdmin && u.status === 'active' && (
+                                <button
+                                  type="button"
+                                  disabled={isLoading || actionLoadingId === u._id}
+                                  onClick={() => handlePauseUser(u._id, u.name)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-xs font-semibold shadow-subtle transition-all active:scale-95"
+                                  title="Pause account (temporarily stop data entry)"
+                                >
+                                  <PauseCircle className="w-3.5 h-3.5 text-amber-600" />
+                                  Pause
+                                </button>
+                              )}
+
+                              {!isMainAdmin && (u.status === 'paused' || u.status === 'suspended') && (
+                                <button
+                                  type="button"
+                                  disabled={isLoading || actionLoadingId === u._id}
+                                  onClick={() => handleResumeUser(u._id, u.name)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-semibold shadow-subtle transition-all active:scale-95"
+                                  title="Resume account (enable data entry)"
+                                >
+                                  <PlayCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                  Resume
+                                </button>
+                              )}
+
                               {/* Toggle Activate / Deactivate */}
                               {!isMainAdmin && u.status !== 'pending' && (
                                 <button
                                   type="button"
-                                  disabled={isLoading}
+                                  disabled={isLoading || actionLoadingId === u._id}
                                   onClick={() => handleToggleUserStatus(u._id, u.status)}
                                   className={`px-2 py-1 rounded text-xs font-semibold transition-colors ${
-                                    u.status === 'active'
+                                    u.status === 'active' || u.status === 'paused'
                                       ? 'text-rose-600 hover:bg-rose-50 border border-rose-200'
                                       : 'text-emerald-700 hover:bg-emerald-50 border border-emerald-200'
                                   }`}
+                                  title={u.status === 'active' || u.status === 'paused' ? 'Deactivate account' : 'Activate account'}
                                 >
-                                  {u.status === 'active' ? 'Deactivate' : 'Activate'}
+                                  {u.status === 'active' || u.status === 'paused' ? 'Deactivate' : 'Activate'}
                                 </button>
                               )}
 

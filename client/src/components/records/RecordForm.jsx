@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { recordsApi } from '../../services/recordsApi';
 import { useToast } from '../../context/ToastContext';
 import { useSettings } from '../../context/SettingsContext';
+import { useAuth } from '../../context/AuthContext';
 import { formatDateForInput, getCurrentHospitalTime, formatHospitalTime } from '../../utils/dateUtils';
 import { DuplicateWarning } from './DuplicateWarning';
 import {
@@ -16,6 +17,7 @@ import {
   Loader2,
   Sparkles,
   Lock,
+  PauseCircle,
 } from 'lucide-react';
 
 export const RecordForm = ({
@@ -27,6 +29,7 @@ export const RecordForm = ({
 }) => {
   const toast = useToast();
   const { settings } = useSettings();
+  const { isPaused } = useAuth();
 
   const getInitialState = () => {
     if (initialData) {
@@ -166,6 +169,10 @@ export const RecordForm = ({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isPaused) {
+      toast.error('আপনার অ্যাকাউন্টটি স্থগিত (Paused) থাকায় ডাটা সংরক্ষণ করা সম্ভব নয়।');
+      return;
+    }
     if (!validate()) return;
 
     try {
@@ -185,20 +192,11 @@ export const RecordForm = ({
         toast.success('Record updated successfully');
       } else {
         res = await recordsApi.createRecord(payload);
-        toast.success(`Record #${res.data?.sl || ''} saved successfully`);
-        
-        // Prepare next record with automatic +1 incremented serial number and clean input
-        const savedSl = res.data?.sl || Number(formData.sl) || 1;
-        const nextSequentialSl = savedSl + 1;
-        setAutoSlNumber(nextSequentialSl);
-
+        toast.success('Record created successfully');
+        const fresh = getInitialState();
         setFormData({
-          sl: nextSequentialSl,
-          patientId: '',
-          patientName: '',
-          date: formData.date, // keep same date for rapid batch entries
-          time: getCurrentHospitalTime(),
-          remark: '100',
+          ...fresh,
+          sl: autoSlNumber ? autoSlNumber + 1 : '',
           _isAutoSl: true,
         });
         setDuplicateInfo(null);
@@ -218,6 +216,16 @@ export const RecordForm = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      {/* Paused Account Notice */}
+      {isPaused && (
+        <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 flex items-center gap-3 text-xs font-semibold">
+          <PauseCircle className="w-5 h-5 text-amber-600 shrink-0" />
+          <span>
+            ⚠️ আপনার অ্যাকাউন্টটি বর্তমানে স্থগিত (Paused) রয়েছে। নতুন রেকর্ড এন্ট্রি বা পরিবর্তন সাময়িকভাবে বন্ধ আছে।
+          </span>
+        </div>
+      )}
+
       {/* Duplicate Alert Banner */}
       <DuplicateWarning
         duplicateInfo={duplicateInfo}
@@ -447,7 +455,8 @@ export const RecordForm = ({
 
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || isPaused}
+            title={isPaused ? 'অ্যাকাউন্ট স্থগিত রয়েছে' : undefined}
             className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold shadow-md shadow-brand-600/30 transition-all active:scale-95 disabled:opacity-50"
           >
             {isSubmitting ? (
