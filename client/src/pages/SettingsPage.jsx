@@ -991,20 +991,36 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                   type="button"
                   disabled={isSendingEmailNow || !userBackupEmail}
                   onClick={handleSendExcelNow}
-                  className="w-full mt-2 inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl bg-gradient-to-r from-brand-600 to-sky-600 hover:from-brand-700 hover:to-sky-700 text-white font-bold text-sm shadow-lg shadow-brand-500/25 transition-all active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none"
+                  className="w-full mt-2 inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl bg-gradient-to-r from-brand-600 via-sky-600 to-indigo-600 hover:from-brand-700 hover:to-indigo-700 text-white font-bold text-sm shadow-lg shadow-brand-500/25 transition-all active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none"
                 >
                   {isSendingEmailNow ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Sending Excel Report to Your Email...
+                      Dispatching PDF & Excel Statement to Email...
                     </>
                   ) : (
                     <>
                       <FileSpreadsheet className="w-4 h-4" />
-                      Send Excel Report to My Email Now
+                      <FileType className="w-4 h-4" />
+                      Send Monthly Report (PDF + Excel) to My Email
                     </>
                   )}
                 </button>
+              </div>
+
+              {/* Monthly Closing Schedule Banner */}
+              <div className="p-4 rounded-xl bg-gradient-to-r from-sky-50 to-indigo-50 border border-sky-200/80 flex items-start gap-3.5">
+                <div className="w-9 h-9 rounded-xl bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
+                  <Activity className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold text-slate-900">
+                    🏆 Automated Monthly Closing Service (স্বয়ংক্রিয় মাসিক ক্লোজিং রিপোর্ট)
+                  </h4>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    প্রতি মাসের শেষ তারিখ (যেমন ২৮/৩০/৩১ তারিখ) রাত ১২টার পর (পরের মাসের ১ তারিখে 00:00), বিগত পুরো মাসের <strong>মোট রোগীর সংখ্যা, মোট টাকা (Remark), ইউনিক রোগী ও গড় আয়ের সম্পূর্ণ হিসাব বিবরণীসহ PDF ও Excel উভয় ফাইল</strong> স্বয়ংক্রিয়ভাবে আপনার ইমেইলে পাঠিয়ে দেওয়া হবে।
+                  </p>
+                </div>
               </div>
             </div>
           </div>

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import tls from 'tls';
 import net from 'net';
 import { Resend } from 'resend';
+import { generateMonthlyRecordsPDF } from './pdfGenerator.js';
 
 import Record from '../models/Record.js';
 import User from '../models/User.js';
@@ -339,8 +340,14 @@ export const dispatchEmail = async ({ settings, to, subject, html, attachments =
   }
 };
 
-// 8. Send Personalized Backup to a Specific User (Excel file delivery)
-export const sendUserBackupEmail = async (userId, customRecipientEmail = null, targetMonth = null, targetYear = null) => {
+// 8. Send Personalized Monthly / Daily Backup with BOTH Excel (.csv) AND PDF Report
+export const sendUserBackupEmail = async (
+  userId,
+  customRecipientEmail = null,
+  targetMonth = null,
+  targetYear = null,
+  isMonthlyClosing = false
+) => {
   const user = await User.findById(userId).lean();
   if (!user) throw new Error('User not found');
 
@@ -349,6 +356,7 @@ export const sendUserBackupEmail = async (userId, customRecipientEmail = null, t
 
   const settings = (await Settings.findOne().lean()) || {};
   const hospitalName = settings.hospitalName || 'Ad-din Akij Medical College Hospital';
+  const location = settings.location || 'Clinical Wards';
 
   const filter = { createdBy: userId };
   if (targetMonth && targetMonth !== 'all') {
@@ -362,84 +370,166 @@ export const sendUserBackupEmail = async (userId, customRecipientEmail = null, t
   const dateStr = new Date().toISOString().split('T')[0];
   const nowDisplay = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
-  // Calculate statistics
-  const totalAmount = userRecords.reduce((sum, r) => sum + (parseFloat(r.remark) || 0), 0);
-  const monthLabel = targetMonth && targetMonth !== 'all' 
-    ? new Date(2000, Number(targetMonth) - 1, 1).toLocaleString('en-US', { month: 'long' }) + ` ${targetYear || ''}` 
-    : 'All Time Records';
+  // Calculate high-fidelity clinical and financial metrics
+  const totalEntries = userRecords.length;
+  const uniquePatients = new Set(userRecords.map((r) => String(r.patientId || '').trim()).filter(Boolean)).size;
+  const totalAmount = userRecords.reduce((sum, r) => {
+    const val = parseFloat(String(r.remark || '0').replace(/[^0-9.-]+/g, '')) || 0;
+    return sum + val;
+  }, 0);
+  const avgAmount = totalEntries > 0 ? Math.round(totalAmount / totalEntries) : 0;
 
-  // Excel CSV attachment (UTF-8 BOM so Bangla and numbers open perfectly in Excel)
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  const monthLabel = targetMonth && targetMonth !== 'all'
+    ? `${monthNames[Number(targetMonth) - 1] || 'Month ' + targetMonth} ${targetYear || ''}`
+    : 'Cumulative All-Time Records';
+
+  // 1. Generate Excel CSV buffer (with UTF-8 BOM)
   const csvContent = generateRecordsCSV(userRecords);
+  const csvBuffer = Buffer.from('\uFEFF' + csvContent, 'utf-8');
+
+  // 2. Generate Professional PDF Statement Buffer
+  let pdfBuffer = null;
+  try {
+    pdfBuffer = await generateMonthlyRecordsPDF({
+      records: userRecords,
+      staffName: user.name,
+      hospitalName,
+      location,
+      month: targetMonth,
+      year: targetYear,
+      totalAmount,
+    });
+  } catch (pdfErr) {
+    console.error('[Backup PDF Gen Error]:', pdfErr.message);
+  }
+
+  const safeStaffSlug = (user.username || user.name || 'staff').toLowerCase().replace(/[^a-z0-9]/g, '_');
+  const safeMonthSlug = monthLabel.toLowerCase().replace(/[^a-z0-9]/g, '_');
+
+  const attachments = [
+    {
+      filename: `OverDuty_Statement_${safeStaffSlug}_${safeMonthSlug}.pdf`,
+      contentType: 'application/pdf',
+      content: pdfBuffer,
+    },
+    {
+      filename: `OverDuty_Records_${safeStaffSlug}_${safeMonthSlug}.csv`,
+      contentType: 'text/csv; charset=utf-8',
+      content: csvBuffer,
+    },
+  ].filter((a) => a.content);
+
+  const headerTitle = isMonthlyClosing
+    ? `🏆 Monthly Closing Grand Statement`
+    : `🏥 Patient Records & Over Duty Statement`;
+
+  const subject = isMonthlyClosing
+    ? `🏆 [মাসিক চূড়ান্ত ক্লোজিং রিপোর্ট] ${monthLabel} — ${user.name} (মোট টাকা: Tk. ${totalAmount.toLocaleString()} | ${totalEntries} রোগী)`
+    : `🏥 [ওভার ডিউটি রিপোর্ট] ${monthLabel} — ${user.name} (Tk. ${totalAmount.toLocaleString()} | ${totalEntries} রোগী)`;
 
   const html = `
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head><meta charset="utf-8"></head>
-    <body style="font-family: Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 20px; color: #1e293b;">
-      <div style="max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;">
-        <div style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 20px; color: #ffffff; text-align: center;">
-          <h1 style="margin: 0; font-size: 18px; font-weight: bold;">🏥 ${hospitalName}</h1>
-          <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.9;">Patient Records & Over Duty Excel Report</p>
+    <body style="font-family: 'Segoe UI', Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #1e293b;">
+      <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.07); border: 1px solid #e2e8f0;">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 24px 28px; color: #ffffff; text-align: center;">
+          <h1 style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.3px;">🏥 ${hospitalName}</h1>
+          <p style="margin: 6px 0 0; font-size: 13px; color: #e0f2fe;">${headerTitle}</p>
         </div>
 
-        <div style="padding: 20px;">
-          <h2 style="font-size: 15px; color: #0f172a; margin-top: 0;">Hello ${user.name},</h2>
-          <p style="font-size: 13px; line-height: 1.6; color: #475569;">
-            Attached is your requested patient records & over duty spreadsheet for <strong>${monthLabel}</strong>.
+        <!-- Body -->
+        <div style="padding: 26px 28px;">
+          <h2 style="font-size: 16px; color: #0f172a; margin-top: 0;">Hello ${user.name},</h2>
+          <p style="font-size: 13.5px; line-height: 1.6; color: #475569; margin-bottom: 20px;">
+            ${
+              isMonthlyClosing
+                ? `আপনার <strong>${monthLabel}</strong> মাসের সম্পূর্ণ মাসিক হিসাব ও ওভার ডিউটি স্টেটমেন্ট সফলভাবে প্রস্তুত করা হয়েছে। নিচে সারাংশ এবং সাথে <strong>PDF ও Excel উভয় ফাইল</strong> সংযুক্ত করা হলো:`
+                : `আপনার <strong>${monthLabel}</strong> পর্বের ওভার ডিউটি রোগীর রেকর্ড ও আর্থিক হিসাব বিবরণী নিচে তুলে ধরা হলো:`
+            }
           </p>
 
-          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin: 16px 0;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-              <tr>
-                <td style="padding: 4px 0; color: #64748b;">Staff Member:</td>
-                <td style="padding: 4px 0; font-weight: bold; color: #0f172a; text-align: right;">${user.name}</td>
-              </tr>
-              <tr>
-                <td style="padding: 4px 0; color: #64748b;">Report Period:</td>
-                <td style="padding: 4px 0; font-weight: bold; color: #0284c7; text-align: right;">${monthLabel}</td>
-              </tr>
-              <tr>
-                <td style="padding: 4px 0; color: #64748b;">Total Patients:</td>
-                <td style="padding: 4px 0; font-weight: bold; color: #0f172a; text-align: right;">${userRecords.length} entries</td>
-              </tr>
-              <tr>
-                <td style="padding: 4px 0; color: #64748b;">Total Over Duty Amount:</td>
-                <td style="padding: 4px 0; font-weight: bold; color: #059669; text-align: right;">${totalAmount.toLocaleString()}</td>
-              </tr>
-            </table>
+          <!-- 4-Box Metric Highlight Grid -->
+          <table width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 20px;">
+            <tr>
+              <td width="48%" style="padding: 12px 14px; background-color: #f1f5f9; border-radius: 10px; border: 1px solid #e2e8f0;">
+                <span style="font-size: 10.5px; font-weight: bold; color: #64748b; text-transform: uppercase;">মোট পেশেন্ট এন্ট্রি</span>
+                <div style="font-size: 18px; font-weight: bold; color: #0f172a; margin-top: 4px;">${totalEntries} টি</div>
+              </td>
+              <td width="4%"></td>
+              <td width="48%" style="padding: 12px 14px; background-color: #e0f2fe; border-radius: 10px; border: 1px solid #bae6fd;">
+                <span style="font-size: 10.5px; font-weight: bold; color: #0369a1; text-transform: uppercase;">ইউনিক পেশেন্ট</span>
+                <div style="font-size: 18px; font-weight: bold; color: #0284c7; margin-top: 4px;">${uniquePatients} জন</div>
+              </td>
+            </tr>
+            <tr><td height="10" colspan="3"></td></tr>
+            <tr>
+              <td width="48%" style="padding: 12px 14px; background-color: #dcfce7; border-radius: 10px; border: 1px solid #bbf7d0;">
+                <span style="font-size: 10.5px; font-weight: bold; color: #166534; text-transform: uppercase;">মোট টাকা (Remark)</span>
+                <div style="font-size: 18px; font-weight: bold; color: #16a34a; margin-top: 4px;">Tk. ${totalAmount.toLocaleString()}</div>
+              </td>
+              <td width="4%"></td>
+              <td width="48%" style="padding: 12px 14px; background-color: #f3e8ff; border-radius: 10px; border: 1px solid #e9d5ff;">
+                <span style="font-size: 10.5px; font-weight: bold; color: #6b21a8; text-transform: uppercase;">গড় প্রতি এন্ট্রি</span>
+                <div style="font-size: 18px; font-weight: bold; color: #7c3aed; margin-top: 4px;">Tk. ${avgAmount.toLocaleString()}</div>
+              </td>
+            </tr>
+          </table>
+
+          <!-- Attachments Box -->
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin-bottom: 22px;">
+            <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: bold; color: #0f172a; text-transform: uppercase;">
+              📎 সংযুক্ত ফাইলসমূহ (Attached Files):
+            </p>
+            <p style="margin: 4px 0; font-size: 12.5px; color: #334155;">
+              📄 <strong>1. Official PDF Statement:</strong> <code>OverDuty_Statement_${safeStaffSlug}_${safeMonthSlug}.pdf</code>
+            </p>
+            <p style="margin: 4px 0; font-size: 12.5px; color: #334155;">
+              📊 <strong>2. Excel Spreadsheet:</strong> <code>OverDuty_Records_${safeStaffSlug}_${safeMonthSlug}.csv</code> (Excel / Sheets compatible)
+            </p>
           </div>
 
-          <p style="font-size: 12px; color: #64748b; margin-bottom: 20px;">
-            📎 <strong>Attached File:</strong><br>
-            <code>records-${user.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}-${dateStr}.csv</code> (Open directly in Microsoft Excel / WPS / Google Sheets)
-          </p>
+          <div style="text-align: center; margin: 20px 0 10px;">
+            <a href="https://roni.kodl.uk" style="display: inline-block; background-color: #0284c7; color: #ffffff; font-weight: bold; font-size: 13px; padding: 12px 26px; border-radius: 8px; text-decoration: none;">
+              ওভার ডিউটি পোর্টালে যান (Open Portal)
+            </a>
+          </div>
         </div>
 
-        <div style="background-color: #f8fafc; padding: 12px; text-align: center; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8;">
-          Sent automatically by OverDuty Pro System &copy; ${new Date().getFullYear()} ${hospitalName}
+        <!-- Footer -->
+        <div style="background-color: #f8fafc; padding: 14px; text-align: center; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8;">
+          OverDuty Hospital Pro System &copy; ${new Date().getFullYear()} ${hospitalName} | Date: ${nowDisplay}
         </div>
       </div>
     </body>
     </html>
   `;
 
-  const attachments = [
-    {
-      filename: `records-${user.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}-${dateStr}.csv`,
-      contentType: 'text/csv; charset=utf-8',
-      content: Buffer.from('\uFEFF' + csvContent, 'utf-8'),
-    },
-  ];
+  const text = `${hospitalName}\n${headerTitle}\n\nHello ${user.name},\n\nReport Period: ${monthLabel}\nTotal Patient Entries: ${totalEntries}\nUnique Patients: ${uniquePatients}\nTotal Amount / Earned: Tk. ${totalAmount.toLocaleString()}\nAverage per Entry: Tk. ${avgAmount.toLocaleString()}\n\nAttached Files:\n1. OverDuty_Statement_${safeStaffSlug}_${safeMonthSlug}.pdf (Official PDF Statement)\n2. OverDuty_Records_${safeStaffSlug}_${safeMonthSlug}.csv (Excel Spreadsheet)\n\nPortal: https://roni.kodl.uk\n© ${new Date().getFullYear()} ${hospitalName}`;
 
   await dispatchEmail({
     settings,
     to: recipient,
-    subject: `🏥 Over Duty Excel Report (${monthLabel}) - ${user.name}`,
+    subject,
     html,
+    text,
     attachments,
   });
 
-  return { success: true, recipient, recordCount: userRecords.length };
+  return {
+    success: true,
+    recipient,
+    recordCount: userRecords.length,
+    totalAmount,
+    uniquePatients,
+    monthLabel,
+  };
 };
 
 // 9. Execute Master System Backup (Full DB Dump to Admin)
@@ -543,15 +633,31 @@ export const executeEmailBackup = async (customRecipient = null) => {
   return { success: true, recipient, recordCount: fullBackup.counts.totalRecords };
 };
 
-// 10. Run Full Midnight Backup Loop for All Users
+// 10. Run Full Midnight Backup Loop for All Users & Monthly Closing Detection
 export const runMidnightAllUsersBackup = async () => {
-  console.log('[Scheduler] Starting midnight automated backup for all users...');
+  console.log('[Scheduler] Starting midnight automated backup process...');
   const settings = await Settings.findOne();
-  
+  const now = new Date();
+
   // 1. Save local disk snapshot
   await saveLocalSnapshot();
 
-  // 2. Find all active users with autoEmailBackup enabled
+  // 2. Determine if tonight is Monthly Closing (1st day of month -> closing previous month)
+  const isFirstDayOfMonth = now.getDate() === 1;
+  let targetMonth = now.getMonth() + 1; // default current month
+  let targetYear = now.getFullYear();
+
+  if (isFirstDayOfMonth) {
+    // 1st of month means previous month just completed
+    if (targetMonth === 1) {
+      targetMonth = 12;
+      targetYear = targetYear - 1;
+    } else {
+      targetMonth = targetMonth - 1;
+    }
+  }
+
+  // 3. Find all active users with autoEmailBackup enabled
   const activeUsers = await User.find({
     status: { $in: ['active', 'pending'] },
     autoEmailBackup: { $ne: false },
@@ -565,16 +671,16 @@ export const runMidnightAllUsersBackup = async () => {
     if (!userEmail) continue;
 
     try {
-      await sendUserBackupEmail(user._id, userEmail);
+      await sendUserBackupEmail(user._id, userEmail, targetMonth, targetYear, isFirstDayOfMonth);
       sentCount++;
-      console.log(`[Scheduler] Backup delivered to user: ${user.name} <${userEmail}>`);
+      console.log(`[Scheduler] Backup delivered to: ${user.name} <${userEmail}> (Month: ${targetMonth}/${targetYear}, Closing: ${isFirstDayOfMonth})`);
     } catch (err) {
       console.error(`[Scheduler] Failed delivering to ${user.email}:`, err.message);
       errors.push({ user: user.email, error: err.message });
     }
   }
 
-  // 3. Send Master DB Snapshot to Super Admin (only if enabled)
+  // 4. Send Master DB Snapshot to Super Admin (only if enabled)
   if (settings && settings.autoEmailBackup !== false && settings.backupEmail) {
     try {
       await executeEmailBackup(settings.backupEmail);
@@ -587,11 +693,11 @@ export const runMidnightAllUsersBackup = async () => {
   if (settings) {
     settings.lastBackupAt = new Date();
     settings.lastBackupStatus = errors.length > 0 ? 'error' : 'success';
-    settings.lastBackupMessage = `Nightly backup finished. Delivered to ${sentCount} users. ${errors.length} failed.`;
+    settings.lastBackupMessage = `Backup finished for Month ${targetMonth}/${targetYear} (${isFirstDayOfMonth ? 'Monthly Closing' : 'Daily'}). Delivered to ${sentCount} users.`;
     await settings.save();
   }
 
-  return { sentCount, errorsCount: errors.length };
+  return { sentCount, errorsCount: errors.length, isFirstDayOfMonth, targetMonth, targetYear };
 };
 
 // 11. Restore Database from JSON
