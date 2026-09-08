@@ -39,6 +39,26 @@ const settingsSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    emailProvider: {
+      type: String,
+      enum: ['resend', 'smtp'],
+      default: 'resend',
+    },
+    resendApiKey: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    senderEmail: {
+      type: String,
+      default: 'onboarding@resend.dev',
+      trim: true,
+    },
+    senderName: {
+      type: String,
+      default: 'OverDuty Hospital Backup',
+      trim: true,
+    },
     smtpHost: {
       type: String,
       default: 'smtp.gmail.com',

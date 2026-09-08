@@ -37,6 +37,15 @@ const userSchema = new mongoose.Schema(
       enum: ['active', 'pending', 'inactive'],
       default: 'pending',
     },
+    autoEmailBackup: {
+      type: Boolean,
+      default: true,
+    },
+    backupEmail: {
+      type: String,
+      trim: true,
+      lowercase: true,
+    },
   },
   {
     timestamps: true,

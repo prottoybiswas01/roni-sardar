@@ -5,8 +5,9 @@ import {
   generateFullBackupData,
   saveLocalSnapshot,
   executeEmailBackup,
-  restoreFullBackupData,
-  sendSmtpEmail,
+  sendUserBackupEmail,
+  restoreDatabaseFromJson,
+  dispatchEmail,
 } from '../services/backupService.js';
 import Settings from '../models/Settings.js';
 import Record from '../models/Record.js';
@@ -18,7 +19,7 @@ const BACKUPS_DIR = path.join(__dirname, '..', 'backups');
 
 // @desc    Get current backup status and local snapshot list
 // @route   GET /api/backup/status
-// @access  Private/SuperAdmin/Admin
+// @access  Private
 export const getBackupStatus = async (req, res, next) => {
   try {
     const [settings, totalRecords, totalUsers] = await Promise.all([
@@ -51,6 +52,10 @@ export const getBackupStatus = async (req, res, next) => {
         totalUsers,
         backupEmail: settings?.backupEmail || 'admin@hospital.com',
         autoEmailBackup: settings?.autoEmailBackup ?? true,
+        emailProvider: settings?.emailProvider || 'resend',
+        resendApiKey: settings?.resendApiKey ? '••••••••••••••••' : '',
+        senderEmail: settings?.senderEmail || 'onboarding@resend.dev',
+        senderName: settings?.senderName || 'OverDuty Hospital Backup',
         smtpHost: settings?.smtpHost || 'smtp.gmail.com',
         smtpPort: settings?.smtpPort || 465,
         smtpUser: settings?.smtpUser || '',
@@ -97,7 +102,7 @@ export const restoreBackup = async (req, res, next) => {
       });
     }
 
-    const result = await restoreFullBackupData(backupJson);
+    const result = await restoreDatabaseFromJson(backupJson);
 
     res.status(200).json({
       success: true,
@@ -109,17 +114,26 @@ export const restoreBackup = async (req, res, next) => {
   }
 };
 
-// @desc    Trigger immediate daily backup email dispatch
+// @desc    Trigger immediate master or user backup email dispatch
 // @route   POST /api/backup/email-now
-// @access  Private/SuperAdmin/Admin
+// @access  Private
 export const triggerEmailBackup = async (req, res, next) => {
   try {
-    const { customRecipient } = req.body;
-    const result = await executeEmailBackup(customRecipient);
+    const { customRecipient, forSelfOnly } = req.body;
 
+    if (forSelfOnly || req.user.role === 'staff') {
+      const result = await sendUserBackupEmail(req.user._id, customRecipient || req.user.email);
+      return res.status(200).json({
+        success: true,
+        message: `Your personal patient records backup was delivered to ${result.recipient}!`,
+        data: result,
+      });
+    }
+
+    const result = await executeEmailBackup(customRecipient);
     res.status(200).json({
       success: true,
-      message: result.message,
+      message: `Master database backup dispatched successfully to ${result.recipient}!`,
       data: result,
     });
   } catch (error) {
@@ -127,45 +141,52 @@ export const triggerEmailBackup = async (req, res, next) => {
   }
 };
 
-// @desc    Test SMTP email connection
+// @desc    Test email gateway connection
 // @route   POST /api/backup/test-email
 // @access  Private/SuperAdmin/Admin
 export const testEmailSettings = async (req, res, next) => {
   try {
-    const { host, port, user, pass, secure, to } = req.body;
+    const { emailProvider, resendApiKey, senderEmail, senderName, host, port, user, pass, secure, to } = req.body;
 
-    if (!host || !user || !pass || !to) {
+    if (!to) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide SMTP Host, User (Email), App Password, and Recipient Email',
+        message: 'Please provide a Recipient Email address to receive the test message.',
       });
     }
 
     const testHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 500px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
-        <h3 style="color: #0284c7; margin-top: 0;">✅ Hospital OverDuty Pro — Email Test Successful</h3>
+        <h3 style="color: #0284c7; margin-top: 0;">✅ Hospital OverDuty Pro — Email Gateway Active</h3>
         <p style="font-size: 13px; color: #334155;">
-          Your SMTP connection is working correctly. Daily automated database backups will be delivered to this email address every night at midnight.
+          Your automated email gateway is configured properly. Automated daily midnight record backups will be delivered seamlessly.
         </p>
         <p style="font-size: 11px; color: #94a3b8;">Timestamp: ${new Date().toLocaleString()}</p>
       </div>
     `;
 
-    await sendSmtpEmail({
-      host,
-      port: Number(port) || 465,
-      user,
-      pass,
-      secure: secure !== undefined ? Boolean(secure) : true,
-      from: user,
+    const customSettings = {
+      emailProvider: emailProvider || 'resend',
+      resendApiKey,
+      senderEmail,
+      senderName,
+      smtpHost: host,
+      smtpPort: port,
+      smtpUser: user,
+      smtpPass: pass,
+      smtpSecure: secure,
+    };
+
+    await dispatchEmail({
+      settings: customSettings,
       to,
       subject: '✅ [Test] Hospital OverDuty Email Backup Verification',
-      htmlBody: testHtml,
+      html: testHtml,
     });
 
     res.status(200).json({
       success: true,
-      message: `Test email successfully sent to ${to}! Your SMTP configuration is working properly.`,
+      message: `Test email successfully delivered to ${to}!`,
     });
   } catch (error) {
     next(error);
