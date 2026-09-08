@@ -1031,8 +1031,12 @@ export const verifyAndDeleteUser = async (req, res, next) => {
       }
     }
 
-    // 3. Delete user from database
+    // 3. Clean up database: Permanently delete ALL patient records created by this user & the user account from MongoDB
+    const deletedRecordsResult = await Record.deleteMany({ createdBy: user._id });
     await User.findByIdAndDelete(req.params.id);
+    console.log(
+      `[User Deletion] User "${user.name}" (@${user.username}) and all ${deletedRecordsResult.deletedCount} associated patient records were permanently removed from MongoDB.`
+    );
 
     // 4. Dispatch security deletion notification to Super Admin (prottoybiswas575358@gmail.com)
     try {
@@ -1043,19 +1047,20 @@ export const verifyAndDeleteUser = async (req, res, next) => {
         <body style="font-family: Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #1e293b;">
           <div style="max-width: 520px; margin: 0 auto; background: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;">
             <div style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); padding: 20px; color: #ffffff; text-align: center;">
-              <h1 style="margin: 0; font-size: 18px; font-weight: bold;">⚠️ ইউজার প্রোফাইল সফলভাবে ডিলিট হয়েছে</h1>
-              <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.95;">OverDuty Pro — Account Deletion Alert</p>
+              <h1 style="margin: 0; font-size: 18px; font-weight: bold;">⚠️ ইউজার ও সকল ডাটা সফলভাবে ডিলিট হয়েছে</h1>
+              <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.95;">OverDuty Pro — Account & Records Purge Alert</p>
             </div>
             <div style="padding: 24px;">
-              <h2 style="font-size: 15px; color: #0f172a; margin-top: 0;">অ্যাকাউন্ট ডিলিট ও ব্যাকআপ সম্পন্ন</h2>
+              <h2 style="font-size: 15px; color: #0f172a; margin-top: 0;">ডাটাবেজ ক্লিনআপ ও অ্যাকাউন্ট ডিলিট সম্পন্ন</h2>
               <p style="font-size: 13px; line-height: 1.6; color: #475569;">
-                ইমেইল ওটিপি কোড ভেরিফিকেশনের মাধ্যমে নিচের ইউজার প্রোফাইলটি সফলভাবে মুছে ফেলা হয়েছে এবং ইউজারের ইমেইলে (${targetRecipient}) তার সকল রেকর্ড PDF ও Excel আকারে ব্যাকআপ পাঠিয়ে দেওয়া হয়েছে:
+                ইমেইল ওটিপি কোড ভেরিফিকেশনের মাধ্যমে নিচের ইউজার প্রোফাইলটি সফলভাবে মুছে ফেলা হয়েছে, ইউজারের ইমেইলে (${targetRecipient}) তার সকল রেকর্ডের PDF ও Excel ব্যাকআপ পাঠানো হয়েছে এবং <strong>MongoDB ডাটাবেজ থেকে ইউজারের সমস্ত ডাটা সম্পূর্ণ মুছে ফেলা হয়েছে</strong>:
               </p>
               <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 14px; margin: 16px 0; font-size: 13px; line-height: 1.8;">
                 <div><strong>মুছে ফেলা ইউজারের নাম:</strong> ${user.name}</div>
                 <div><strong>ইউজারনেম:</strong> @${user.username}</div>
                 <div><strong>ইমেইল:</strong> ${user.email}</div>
-                <div><strong>মোট পেশেন্ট রেকর্ড:</strong> ${totalEntries} টি (Tk. ${totalAmount.toLocaleString()})</div>
+                <div><strong>ডাটাবেজ থেকে মুছে ফেলা রেকর্ড:</strong> ${deletedRecordsResult.deletedCount} টি</div>
+                <div><strong>মোট অ্যামাউন্ট:</strong> Tk. ${totalAmount.toLocaleString()}</div>
                 <div><strong>ডিলিটের সময়:</strong> ${new Date().toLocaleString()}</div>
               </div>
             </div>
@@ -1065,7 +1070,7 @@ export const verifyAndDeleteUser = async (req, res, next) => {
       `;
       await dispatchEmail({
         to: PRIMARY_SUPERADMIN_EMAIL,
-        subject: `⚠️ [Security Notice] User Account Deleted: ${user.name} (@${user.username})`,
+        subject: `⚠️ [Security Notice] User & All Data Purged: ${user.name} (@${user.username})`,
         html: deleteNotifHtml,
       });
     } catch (eNotif) {
@@ -1074,7 +1079,7 @@ export const verifyAndDeleteUser = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: `ইউজার "${user.name}" এর অ্যাকাউন্ট ওটিপি ভেরিফিকেশনপূর্বক সফলভাবে মুছে ফেলা হয়েছে এবং তার সমস্ত ঐতিহাসিক ডাটা (${totalEntries} টি রেকর্ড) PDF ও Excel ফাইলসহ ইউজারের ইমেইলে ব্যাকআপ পাঠানো হয়েছে।`,
+      message: `ইউজার "${user.name}" এর অ্যাকাউন্ট ওটিপি ভেরিফিকেশনপূর্বক সফলভাবে মুছে ফেলা হয়েছে, সমস্ত ডাটা ইউজারের ইমেইলে ব্যাকআপ হিসেবে পাঠানো হয়েছে এবং MongoDB ডাটাবেজ থেকে ${deletedRecordsResult.deletedCount} টি রেকর্ড সম্পূর্ণ ডিলিট করা হয়েছে।`,
     });
   } catch (error) {
     next(error);
