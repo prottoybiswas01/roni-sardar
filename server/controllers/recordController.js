@@ -208,12 +208,12 @@ export const createRecord = async (req, res, next) => {
       });
     }
 
-    // CRITICAL: Ensure patientId is preserved strictly as a trimmed string
+    // CRITICAL: Ensure patientId is strictly digits (0-9) preserving leading zeroes
     const stringPatientId = String(patientId).trim();
-    if (!stringPatientId) {
+    if (!stringPatientId || !/^\d+$/.test(stringPatientId)) {
       return res.status(400).json({
         success: false,
-        message: 'Valid Patient ID string is required',
+        message: 'Patient ID must contain only numbers (0-9). Letters or special characters are not allowed.',
       });
     }
 
@@ -292,10 +292,10 @@ export const updateRecord = async (req, res, next) => {
 
     if (patientId !== undefined) {
       const stringPatientId = String(patientId).trim();
-      if (!stringPatientId) {
+      if (!stringPatientId || !/^\d+$/.test(stringPatientId)) {
         return res.status(400).json({
           success: false,
-          message: 'Patient ID cannot be empty',
+          message: 'Patient ID must contain only numbers (0-9). Letters or special characters are not allowed.',
         });
       }
       record.patientId = stringPatientId;
@@ -487,16 +487,18 @@ export const restoreRecord = async (req, res, next) => {
       });
     }
 
-    // Ownership check: regular users can only restore their own records unless superadmin/admin
-    if (
-      req.user &&
-      req.user.role !== 'superadmin' &&
-      req.user.role !== 'admin' &&
-      String(record.createdBy) !== String(req.user._id)
-    ) {
+    // Strict Rule: ONLY the user who deleted this record can restore it.
+    // Super Admin cannot restore records deleted by other users.
+    const deleterId = record.deletedBy
+      ? String(record.deletedBy._id || record.deletedBy)
+      : record.createdBy
+      ? String(record.createdBy._id || record.createdBy)
+      : null;
+
+    if (!req.user || (deleterId && String(req.user._id) !== deleterId)) {
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to restore this record',
+        message: 'অনুমতি নেই: শুধুমাত্র যে ইউজার রেকর্ডটি ডিলিট করেছেন, তিনিই এটি রিস্টোর করতে পারবেন। সুপার এডমিন এটি রিস্টোর করতে পারবেন না। (Only the user who deleted this record can restore it)',
       });
     }
 

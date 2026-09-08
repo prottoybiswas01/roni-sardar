@@ -41,7 +41,10 @@ export const OCRReviewModal = ({
   if (!isOpen || !ocrData) return null;
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    let { name, value } = e.target;
+    if (name === 'patientId') {
+      value = value.replace(/\D/g, '');
+    }
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -106,16 +109,18 @@ export const OCRReviewModal = ({
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
                 <Hash className="w-3.5 h-3.5 text-brand-600" />
-                Patient ID (Text / Preserves Zeros)
+                Patient ID (Numbers Only)
               </label>
               {getConfidenceBadge(ocrData.confidence?.patientId)}
             </div>
             <input
               type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               name="patientId"
               value={formData.patientId}
               onChange={handleChange}
-              placeholder="e.g. 001234 or 0250474"
+              placeholder="e.g. 001234 or 250474"
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono text-slate-900 focus-ring"
               required
             />

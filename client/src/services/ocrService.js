@@ -306,7 +306,7 @@ export const parseExtractedText = (rawText, overallConfidence = 70) => {
   return {
     rawText,
     fields: {
-      patientId,
+      patientId: patientId ? patientId.replace(/\D/g, '') : '',
       patientName,
       date,
       time,

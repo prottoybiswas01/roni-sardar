@@ -128,7 +128,11 @@ export const RecordForm = ({
   }, [formData.patientId, formData.date, settings.checkDuplicates, initialData]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    let { name, value } = e.target;
+    if (name === 'patientId') {
+      // Strictly only numbers (0-9) - strip any letters, hyphens, symbols
+      value = value.replace(/\D/g, '');
+    }
     setFormData((prev) => ({
       ...prev,
       [name]: value,
@@ -152,7 +156,9 @@ export const RecordForm = ({
   const validate = () => {
     const newErrors = {};
     if (!formData.patientId.trim()) {
-      newErrors.patientId = 'Patient ID is required (must be text)';
+      newErrors.patientId = 'Patient ID is required (only numbers)';
+    } else if (!/^\d+$/.test(formData.patientId.trim())) {
+      newErrors.patientId = 'Patient ID must only contain numbers (0-9)';
     }
     if (!formData.patientName.trim()) {
       newErrors.patientName = 'Patient Name is required';
@@ -262,17 +268,19 @@ export const RecordForm = ({
           </p>
         </div>
 
-        {/* Patient ID - Strictly Text string preserving leading zeroes */}
+        {/* Patient ID - Strictly Numbers preserving leading zeroes */}
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
             <span className="flex items-center gap-1.5">
               <Hash className="w-3.5 h-3.5 text-brand-600" />
               Patient ID <span className="text-rose-500">*</span>
             </span>
-            <span className="text-[10px] text-slate-400 font-normal">Preserves leading zeros</span>
+            <span className="text-[10px] text-slate-400 font-normal">Numbers only (preserves leading zeros)</span>
           </label>
           <input
             type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
             name="patientId"
             value={formData.patientId}
             onChange={handleChange}
@@ -286,7 +294,7 @@ export const RecordForm = ({
           )}
         </div>
 
-        {/* Patient Name */}
+        {/* Patient Name - Supports dots, slashes, letters */}
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
             <User className="w-3.5 h-3.5 text-brand-600" />
@@ -297,7 +305,7 @@ export const RecordForm = ({
             name="patientName"
             value={formData.patientName}
             onChange={handleChange}
-            placeholder="e.g. B/O TONNI or ISLAM"
+            placeholder="e.g. B/O TONNI or MD. ALAM / FATEMA"
             className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 uppercase focus-ring ${
               errors.patientName ? 'border-rose-300 bg-rose-50/40' : 'border-slate-300'
             }`}

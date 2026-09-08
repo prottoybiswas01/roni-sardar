@@ -87,9 +87,13 @@ export const RecycleBinPage = () => {
     [searchTerm, selectedUserId, isSuperAdmin, isAdmin]
   );
 
-  useEffect(() => {
-    fetchBinRecords(1);
-  }, [fetchBinRecords]);
+  // Check if current user is the exact user who deleted (or created) this record
+  const canRestore = (record) => {
+    if (!user || !record) return false;
+    const currentUserId = String(user._id || user.id);
+    const deleterId = record.deletedBy?._id || record.deletedBy || record.createdBy?._id || record.createdBy;
+    return Boolean(deleterId && String(deleterId) === currentUserId);
+  };
 
   // Handle Restore
   const handleConfirmRestore = async () => {
@@ -201,10 +205,10 @@ export const RecycleBinPage = () => {
         <Info className="w-5 h-5 text-sky-600 shrink-0 mt-0.5" />
         <div className="space-y-1">
           <p className="font-semibold text-sky-950">
-            নিরাপত্তা সতর্কতা ও রিস্টোর সুবিধা:
+            নিরাপত্তা সতর্কতা ও রিস্টোর নিয়ম:
           </p>
           <p className="text-sky-800 leading-relaxed">
-            কোনো ডাটা ভুলবশত ডিলিট হলে চিন্তার কিছু নেই। এখান থেকে <strong className="text-sky-950">"রিস্টোর" (Restore)</strong> বাটনে ক্লিক করে সাথে সাথে মূল তালিকায় ফিরিয়ে নিতে পারবেন। শুধুমাত্র <strong className="text-sky-950">সুপার এডমিন</strong> ডাটাবেজ থেকে চিরতরে মুছে ফেলতে পারেন।
+            কোনো ডাটা ভুলবশত ডিলিট হলে, <strong className="text-sky-950">যে ইউজার ডিলিট করেছেন একমাত্র তিনিই</strong> "রিস্টোর" (Restore) বাটনে ক্লিক করে মূল তালিকায় ফিরিয়ে নিতে পারবেন। <strong className="text-sky-950">সুপার এডমিন</strong> কারো ডাটা রিস্টোর করতে পারেন না, শুধুমাত্র প্রয়োজন অনুযায়ী ডাটাবেজ থেকে চিরতরে মুছে ফেলতে (Permanent Delete / Empty Bin) পারেন।
           </p>
         </div>
       </div>
@@ -331,16 +335,18 @@ export const RecycleBinPage = () => {
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        {/* Restore Button (Available to record owner & admins) */}
-                        <button
-                          type="button"
-                          onClick={() => setRestoringRecord(r)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors shadow-2xs"
-                          title="রিস্টোর করে মূল তালিকায় ফেরত নিন"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          <span>Restore (রিস্টোর)</span>
-                        </button>
+                        {/* Restore Button: ONLY allowed and shown for the user who deleted this record */}
+                        {canRestore(r) && (
+                          <button
+                            type="button"
+                            onClick={() => setRestoringRecord(r)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors shadow-2xs"
+                            title="রিস্টোর করে মূল তালিকায় ফেরত নিন"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Restore (রিস্টোর)</span>
+                          </button>
+                        )}
 
                         {/* Permanent Delete Button (SUPER ADMIN ONLY) */}
                         {isSuperAdmin && (
