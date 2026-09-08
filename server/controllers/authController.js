@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import Settings from '../models/Settings.js';
 import { dispatchEmail } from '../services/backupService.js';
 
 // Generate JWT token
@@ -422,6 +423,24 @@ export const seedInitialAdmin = async () => {
       }
       await admin.save();
       console.log('[Auth] Super Administrator synchronized: admin / admin123 (role: superadmin, status: active)');
+    }
+
+    // Ensure system settings exist and default to Resend provider
+    let settings = await Settings.findOne();
+    if (!settings) {
+      settings = new Settings({
+        emailProvider: 'resend',
+        senderEmail: 'backup@roni.kodl.uk',
+        senderName: 'OverDuty Hospital Backup',
+        resendApiKey: process.env.RESEND_API_KEY || '',
+      });
+      await settings.save();
+      console.log('[Settings] Default hospital settings initialized.');
+    } else if (process.env.RESEND_API_KEY && !settings.resendApiKey) {
+      settings.resendApiKey = process.env.RESEND_API_KEY;
+      settings.emailProvider = 'resend';
+      await settings.save();
+      console.log('[Settings] Resend API key synchronized.');
     }
   } catch (err) {
     console.error('[Auth] Error checking initial admin seed:', err.message);
