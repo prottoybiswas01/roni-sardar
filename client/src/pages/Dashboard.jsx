@@ -20,10 +20,9 @@ import {
   Clock,
   TrendingUp,
   FileText,
-  Share2,
 } from 'lucide-react';
 
-export const Dashboard = ({ onNavigate, onOpenScanner, onOpenShare }) => {
+export const Dashboard = ({ onNavigate, onOpenScanner }) => {
   const toast = useToast();
   const { isPaused } = useAuth();
   const { settings, selectedMonth, selectedYear } = useSettings();
@@ -139,15 +138,6 @@ export const Dashboard = ({ onNavigate, onOpenScanner, onOpenShare }) => {
             >
               <FileText className="w-4 h-4 text-emerald-400" />
               Monthly Report
-            </button>
-
-            <button
-              type="button"
-              onClick={() => (onOpenShare ? onOpenShare() : onNavigate('reports'))}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-sm border border-white/10 transition-all active:scale-95"
-            >
-              <Share2 className="w-4 h-4 text-amber-300" />
-              Share / Email (মেইল)
             </button>
           </div>
         </div>

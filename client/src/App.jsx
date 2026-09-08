@@ -80,7 +80,6 @@ const MainApplication = () => {
           <Dashboard
             onNavigate={(tab) => setActiveTab(tab)}
             onOpenScanner={() => setIsScannerOpen(true)}
-            onOpenShare={() => setIsShareModalOpen(true)}
           />
         )}
 

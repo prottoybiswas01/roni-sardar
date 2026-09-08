@@ -25,7 +25,14 @@ export const RecordTable = ({
   onPageChange,
   onAddNew,
 }) => {
-  const { isManager } = useAuth();
+  const { user } = useAuth();
+
+  const isRecordOwner = (record) => {
+    if (!user) return false;
+    if (!record.createdBy) return true;
+    const creatorId = typeof record.createdBy === 'object' ? record.createdBy._id : record.createdBy;
+    return String(creatorId) === String(user._id || user.id);
+  };
 
   if (isLoading) {
     return (
@@ -80,6 +87,8 @@ export const RecordTable = ({
             <tbody className="divide-y divide-slate-100 text-sm">
               {records.map((record, index) => {
                 const slNumber = record.sl || index + 1;
+                const canModify = isRecordOwner(record);
+
                 return (
                   <tr
                     key={record._id || index}
@@ -119,27 +128,36 @@ export const RecordTable = ({
 
                     {/* Action buttons */}
                     <td className="py-3 px-4 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          type="button"
-                          onClick={() => onEdit(record)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
-                          title="Edit record"
-                          aria-label="Edit record"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
+                      {canModify ? (
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => onEdit(record)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
+                            title="Edit record"
+                            aria-label="Edit record"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() => onDelete(record)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                          title="Delete record"
-                          aria-label="Delete record"
+                          <button
+                            type="button"
+                            onClick={() => onDelete(record)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                            title="Delete record"
+                            aria-label="Delete record"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <span
+                          className="inline-block text-[10px] font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded border border-slate-200"
+                          title={`Created by: ${record.createdBy?.name || record.createdBy?.username || 'Staff'} (View Only)`}
                         >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                          View only
+                        </span>
+                      )}
                     </td>
                   </tr>
                 );
@@ -153,6 +171,8 @@ export const RecordTable = ({
       <div className="md:hidden space-y-3">
         {records.map((record, index) => {
           const slNumber = record.sl || index + 1;
+          const canModify = isRecordOwner(record);
+
           return (
             <div
               key={record._id || index}
@@ -167,25 +187,31 @@ export const RecordTable = ({
                   </span>
                 </div>
 
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => onEdit(record)}
-                    className="p-1.5 text-slate-500 hover:text-brand-600 rounded-lg hover:bg-slate-100"
-                    aria-label="Edit"
-                  >
-                    <Edit3 className="w-4 h-4" />
-                  </button>
+                {canModify ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => onEdit(record)}
+                      className="p-1.5 text-slate-500 hover:text-brand-600 rounded-lg hover:bg-slate-100"
+                      aria-label="Edit"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => onDelete(record)}
-                    className="p-1.5 text-slate-500 hover:text-rose-600 rounded-lg hover:bg-rose-50"
-                    aria-label="Delete"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                    <button
+                      type="button"
+                      onClick={() => onDelete(record)}
+                      className="p-1.5 text-slate-500 hover:text-rose-600 rounded-lg hover:bg-rose-50"
+                      aria-label="Delete"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                    View only
+                  </span>
+                )}
               </div>
 
               {/* Patient Name */}

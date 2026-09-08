@@ -19,9 +19,7 @@ import {
   Calendar,
   FileSpreadsheet,
   FileType,
-  Share2,
 } from 'lucide-react';
-import { ShareReportModal } from '../components/reports/ShareReportModal';
 
 export const MonthlyReportPage = ({ onAddNew }) => {
   const toast = useToast();
@@ -34,7 +32,6 @@ export const MonthlyReportPage = ({ onAddNew }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
-  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   useEffect(() => {
     if (isSuperAdmin) {
@@ -208,17 +205,6 @@ export const MonthlyReportPage = ({ onAddNew }) => {
           <button
             type="button"
             disabled={records.length === 0}
-            onClick={() => setIsShareModalOpen(true)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-md transition-all active:scale-95 disabled:opacity-40"
-            title="ইমেইলে রিপোর্ট পাঠান (দোকানদার / প্রিন্ট / বসের ঠিকানায়)"
-          >
-            <Share2 className="w-4 h-4" />
-            Share / Email (মেইলে পাঠান)
-          </button>
-
-          <button
-            type="button"
-            disabled={records.length === 0}
             onClick={handlePrint}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-md transition-all active:scale-95 disabled:opacity-40"
             title="Print official hospital statement (Clean A4 without browser headers)"
@@ -353,14 +339,6 @@ export const MonthlyReportPage = ({ onAddNew }) => {
           </div>
         )}
       </div>
-
-      {/* Share / Email Report Modal */}
-      <ShareReportModal
-        isOpen={isShareModalOpen}
-        onClose={() => setIsShareModalOpen(false)}
-        initialMonth={selectedMonth}
-        initialYear={selectedYear}
-      />
     </div>
   );
 };

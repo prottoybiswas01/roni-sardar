@@ -258,6 +258,22 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
     fetchInspectedUserData(user._id, selectedMonth || new Date().getMonth() + 1, selectedYear || new Date().getFullYear());
   };
 
+  const handleInspectMonthChange = (val) => {
+    const numMonth = Number(val);
+    setInspectMonth(numMonth);
+    if (inspectingUser) {
+      fetchInspectedUserData(inspectingUser._id, numMonth, inspectYear);
+    }
+  };
+
+  const handleInspectYearChange = (val) => {
+    const numYear = Number(val);
+    setInspectYear(numYear);
+    if (inspectingUser) {
+      fetchInspectedUserData(inspectingUser._id, inspectMonth, numYear);
+    }
+  };
+
   const handleExportInspectedExcel = async () => {
     if (!inspectingUser) return;
     try {
@@ -762,18 +778,19 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                             )}
                           </td>
 
-                          {/* Auto Backup Toggle (Super Admin Control) */}
+                          {/* Auto Backup Status (Read-Only Status Display) */}
                           <td className="py-3.5 px-4 text-center">
-                            <button
-                              type="button"
-                              disabled={isLoading}
-                              onClick={() => handleToggleUserAutoBackup(u._id, u.autoEmailBackup !== false, u.name)}
-                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all shadow-subtle active:scale-95 ${
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
                                 u.autoEmailBackup !== false
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100'
-                                  : 'bg-slate-100 text-slate-500 border border-slate-300 hover:bg-slate-200'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-300'
+                                  : 'bg-slate-100 text-slate-500 border border-slate-300'
                               }`}
-                              title="Click to toggle 12:00 AM auto email backup on/off"
+                              title={
+                                u.autoEmailBackup !== false
+                                  ? 'ইউজারের অ্যাকাউন্ট থেকে অটো ব্যাকআপ সক্রিয় রয়েছে (Active)'
+                                  : 'ইউজারের অ্যাকাউন্ট থেকে অটো ব্যাকআপ বন্ধ রয়েছে (Disabled)'
+                              }
                             >
                               <span
                                 className={`w-2 h-2 rounded-full ${
@@ -781,7 +798,7 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                                 }`}
                               />
                               {u.autoEmailBackup !== false ? 'ON (রাত ১২টা)' : 'OFF (বন্ধ)'}
-                            </button>
+                            </span>
                           </td>
 
                           {/* Actions */}
@@ -790,7 +807,7 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                               {/* View Staff Profile & Records */}
                               <button
                                 type="button"
-                                onClick={() => handleOpenUserProfile(u)}
+                                onClick={() => handleOpenInspectModal(u)}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 text-xs font-semibold shadow-subtle transition-all active:scale-95"
                                 title="View this staff member's profile and over duty patient records"
                               >
@@ -1264,7 +1281,7 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                 <button
                   type="button"
                   disabled={isExportingUserExcel || inspectRecords.length === 0}
-                  onClick={handleDownloadInspectedUserExcel}
+                  onClick={handleExportInspectedExcel}
                   className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 text-xs font-semibold shadow-subtle transition-colors disabled:opacity-40"
                   title="Export this staff member's monthly Excel report"
                 >
@@ -1275,7 +1292,7 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                 <button
                   type="button"
                   disabled={isExportingUserPdf || inspectRecords.length === 0}
-                  onClick={handleDownloadInspectedUserPdf}
+                  onClick={handleExportInspectedPdf}
                   className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-rose-50 hover:text-rose-700 text-xs font-semibold shadow-subtle transition-colors disabled:opacity-40"
                   title="Export this staff member's monthly PDF report"
                 >

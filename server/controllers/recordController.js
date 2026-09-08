@@ -276,15 +276,15 @@ export const updateRecord = async (req, res, next) => {
       });
     }
 
-    // Ownership check: users can only update their own record
+    // Ownership check: ONLY the user who created/entered the record can edit it
     if (
+      record.createdBy &&
       req.user &&
-      req.user.role !== 'superadmin' &&
       String(record.createdBy) !== String(req.user._id)
     ) {
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to modify this record',
+        message: 'অনুমতি নেই: শুধুমাত্র যে ইউজার রেকর্ডটি তৈরি করেছেন, তিনিই এটি এডিট করতে পারবেন। (Only the record creator can edit this record)',
       });
     }
 
@@ -363,16 +363,15 @@ export const deleteRecord = async (req, res, next) => {
       });
     }
 
-    // Ownership check: regular users can only delete their own record unless superadmin / admin
+    // Ownership check: ONLY the user who created/entered the record can delete it
     if (
+      record.createdBy &&
       req.user &&
-      req.user.role !== 'superadmin' &&
-      req.user.role !== 'admin' &&
       String(record.createdBy) !== String(req.user._id)
     ) {
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to delete this record',
+        message: 'অনুমতি নেই: শুধুমাত্র যে ইউজার রেকর্ডটি তৈরি করেছেন, তিনিই এটি ডিলিট করতে পারবেন। (Only the record creator can delete this record)',
       });
     }
 
