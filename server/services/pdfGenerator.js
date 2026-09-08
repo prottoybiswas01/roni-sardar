@@ -148,7 +148,7 @@ export const generateMonthlyRecordsPDF = ({
       const sigY = 780;
 
       // Left Signature: Roni Sarder / Medical Technology
-      const leftName = staffName && staffName.toLowerCase().includes('roni') ? 'Roni Sarder' : staffName || 'Roni Sarder';
+      const leftName = 'Roni Sarder';
       doc.moveTo(45, sigY).lineTo(200, sigY).lineWidth(0.8).strokeColor('#000000').stroke();
       doc.fillColor('#000000').fontSize(9).font('Helvetica-Bold').text(
         leftName,

@@ -16,7 +16,7 @@ export const exportMonthlyReportToPDF = ({
 }) => {
   const monthObj = MONTHS.find((m) => m.value === Number(month));
   const monthName = monthObj ? monthObj.name : 'All Months';
-  const monthYearString = `${monthName.toUpperCase()} ${year}`;
+  const monthYearString = `${monthName} ${year}`;
 
   const uniquePatients = new Set(
     records.map((r) => String(r.patientId || '').trim()).filter(Boolean)
@@ -84,7 +84,19 @@ export const exportMonthlyReportToPDF = ({
     startY: 34.5,
     head: [['SL', 'Patient ID', 'Patient Name', 'Date', 'Time', 'Remark (Tk)']],
     body: tableData,
-    foot: [[`TOTAL ENTRIES: ${records.length}`, '', '', '', '', `Tk. ${totalAmount.toLocaleString()}`]],
+    foot: [
+      [
+        {
+          content: `TOTAL ENTRIES: ${records.length}`,
+          colSpan: 5,
+          styles: { halign: 'left', fontStyle: 'bold', fontSize: 8 },
+        },
+        {
+          content: `Tk. ${totalAmount.toLocaleString()}`,
+          styles: { halign: 'right', fontStyle: 'bold', fontSize: 8 },
+        },
+      ],
+    ],
     theme: 'plain',
     headStyles: {
       textColor: [0, 0, 0],
