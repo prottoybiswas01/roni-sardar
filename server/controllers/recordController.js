@@ -1,8 +1,12 @@
 import Record from '../models/Record.js';
 
-// Helper: Calculate next SL number for a given month and year
-const getNextSequenceNumber = async (month, year) => {
-  const lastRecord = await Record.findOne({ month, year }).sort({ sl: -1 });
+// Helper: Calculate next SL number for a given month, year, and specific user
+const getNextSequenceNumber = async (month, year, userId = null) => {
+  const query = { month, year };
+  if (userId) {
+    query.createdBy = userId;
+  }
+  const lastRecord = await Record.findOne(query).sort({ sl: -1 });
   return lastRecord && typeof lastRecord.sl === 'number' ? lastRecord.sl + 1 : 1;
 };
 
@@ -27,7 +31,8 @@ export const getNextSl = async (req, res, next) => {
       targetYear = year ? Number(year) : new Date().getFullYear();
     }
 
-    const nextSl = await getNextSequenceNumber(targetMonth, targetYear);
+    const userId = req.user ? req.user._id : null;
+    const nextSl = await getNextSequenceNumber(targetMonth, targetYear, userId);
 
     res.status(200).json({
       success: true,
@@ -54,9 +59,20 @@ export const getRecords = async (req, res, next) => {
       limit = 50,
       sortBy = 'sl',
       sortOrder = 'asc',
+      userId,
     } = req.query;
 
     const query = {};
+
+    // User data isolation: Each user only sees their own records.
+    // Super Administrator can optionally inspect all or filter by specific user.
+    if (req.user && req.user.role === 'superadmin') {
+      if (userId && userId !== 'all') {
+        query.createdBy = userId;
+      }
+    } else {
+      query.createdBy = req.user ? req.user._id : null;
+    }
 
     if (month && Number(month) >= 1 && Number(month) <= 12) {
       query.month = Number(month);
@@ -99,7 +115,7 @@ export const getRecords = async (req, res, next) => {
         .sort(sortOptions)
         .skip(skip)
         .limit(limitNum)
-        .populate('createdBy', 'name email'),
+        .populate('createdBy', 'name email username'),
       Record.countDocuments(query),
     ]);
 
@@ -123,12 +139,24 @@ export const getRecords = async (req, res, next) => {
 // @access  Private
 export const getRecordById = async (req, res, next) => {
   try {
-    const record = await Record.findById(req.params.id).populate('createdBy', 'name email');
+    const record = await Record.findById(req.params.id).populate('createdBy', 'name email username');
 
     if (!record) {
       return res.status(404).json({
         success: false,
         message: 'Record not found',
+      });
+    }
+
+    // Ownership check: regular users can only fetch their own record
+    if (
+      req.user &&
+      req.user.role !== 'superadmin' &&
+      String(record.createdBy?._id || record.createdBy) !== String(req.user._id)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to access this record',
       });
     }
 
@@ -174,9 +202,10 @@ export const createRecord = async (req, res, next) => {
 
     const recordMonth = recordDate.getMonth() + 1;
     const recordYear = recordDate.getFullYear();
+    const userId = req.user ? req.user._id : null;
 
-    // Auto-compute SL if not explicitly given
-    const recordSl = sl && Number(sl) > 0 ? Number(sl) : await getNextSequenceNumber(recordMonth, recordYear);
+    // Auto-compute SL strictly for this user's monthly sequence if not explicitly given
+    const recordSl = sl && Number(sl) > 0 ? Number(sl) : await getNextSequenceNumber(recordMonth, recordYear, userId);
 
     const record = await Record.create({
       sl: recordSl,
@@ -187,7 +216,7 @@ export const createRecord = async (req, res, next) => {
       remark: remark ? remark.trim() : '',
       month: recordMonth,
       year: recordYear,
-      createdBy: req.user ? req.user._id : null,
+      createdBy: userId,
     });
 
     res.status(201).json({
@@ -211,6 +240,18 @@ export const updateRecord = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         message: 'Record not found',
+      });
+    }
+
+    // Ownership check: users can only update their own record
+    if (
+      req.user &&
+      req.user.role !== 'superadmin' &&
+      String(record.createdBy) !== String(req.user._id)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to modify this record',
       });
     }
 
@@ -282,6 +323,18 @@ export const deleteRecord = async (req, res, next) => {
       });
     }
 
+    // Ownership check: users can only delete their own record unless superadmin
+    if (
+      req.user &&
+      req.user.role !== 'superadmin' &&
+      String(record.createdBy) !== String(req.user._id)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to delete this record',
+      });
+    }
+
     await record.deleteOne();
 
     res.status(200).json({
@@ -324,6 +377,11 @@ export const checkDuplicate = async (req, res, next) => {
       date: { $gte: startOfDay, $lte: endOfDay },
     };
 
+    // Duplicate check is scoped to the user's own records
+    if (req.user && req.user.role !== 'superadmin') {
+      query.createdBy = req.user._id;
+    }
+
     if (excludeId) {
       query._id = { $ne: excludeId };
     }
@@ -353,7 +411,7 @@ export const checkDuplicate = async (req, res, next) => {
 // @access  Private
 export const getDashboardStats = async (req, res, next) => {
   try {
-    const { month, year } = req.query;
+    const { month, year, userId } = req.query;
 
     const currentMonth = month ? Number(month) : new Date().getMonth() + 1;
     const currentYear = year ? Number(year) : new Date().getFullYear();
@@ -363,6 +421,16 @@ export const getDashboardStats = async (req, res, next) => {
     const todayStart = new Date(now.setHours(0, 0, 0, 0));
     const todayEnd = new Date(now.setHours(23, 59, 59, 999));
 
+    // Base query scoping to user
+    const baseQuery = {};
+    if (req.user && req.user.role === 'superadmin') {
+      if (userId && userId !== 'all') {
+        baseQuery.createdBy = userId;
+      }
+    } else {
+      baseQuery.createdBy = req.user ? req.user._id : null;
+    }
+
     const [
       totalAllTime,
       totalToday,
@@ -370,13 +438,13 @@ export const getDashboardStats = async (req, res, next) => {
       recentRecords,
       distinctPatientsMonth,
     ] = await Promise.all([
-      Record.countDocuments(),
-      Record.countDocuments({ date: { $gte: todayStart, $lte: todayEnd } }),
-      Record.countDocuments({ month: currentMonth, year: currentYear }),
-      Record.find({ month: currentMonth, year: currentYear })
+      Record.countDocuments(baseQuery),
+      Record.countDocuments({ ...baseQuery, date: { $gte: todayStart, $lte: todayEnd } }),
+      Record.countDocuments({ ...baseQuery, month: currentMonth, year: currentYear }),
+      Record.find({ ...baseQuery, month: currentMonth, year: currentYear })
         .sort({ date: -1, createdAt: -1 })
         .limit(5),
-      Record.distinct('patientId', { month: currentMonth, year: currentYear }),
+      Record.distinct('patientId', { ...baseQuery, month: currentMonth, year: currentYear }),
     ]);
 
     res.status(200).json({

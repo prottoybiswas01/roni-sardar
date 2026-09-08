@@ -58,6 +58,8 @@ const recordSchema = new mongoose.Schema(
 );
 
 // Compound indexes for optimal report & monthly performance queries
+recordSchema.index({ createdBy: 1, month: 1, year: 1, date: 1, sl: 1 });
+recordSchema.index({ createdBy: 1, patientId: 1, date: 1 });
 recordSchema.index({ month: 1, year: 1, date: 1, sl: 1 });
 recordSchema.index({ patientId: 1, date: 1 });
 

@@ -22,6 +22,6 @@ router.get('/next-sl', getNextSl);
 router.get('/:id', getRecordById);
 router.post('/', createRecord);
 router.put('/:id', updateRecord);
-router.delete('/:id', authorize('admin', 'manager'), deleteRecord);
+router.delete('/:id', deleteRecord);
 
 export default router;

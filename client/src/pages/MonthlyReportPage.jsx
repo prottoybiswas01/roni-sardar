@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { recordsApi } from '../services/recordsApi';
 import { useSettings } from '../context/SettingsContext';
+import { useAuth } from '../context/AuthContext';
+import { authApi } from '../services/authApi';
 import { useToast } from '../context/ToastContext';
 import { exportMonthlyReportToExcel } from '../services/excelService';
 import { exportMonthlyReportToPDF } from '../services/pdfService';
@@ -21,12 +23,25 @@ import {
 
 export const MonthlyReportPage = ({ onAddNew }) => {
   const toast = useToast();
+  const { isSuperAdmin } = useAuth();
   const { settings, selectedMonth, selectedYear, setSelectedMonth, setSelectedYear } = useSettings();
 
   const [records, setRecords] = useState([]);
+  const [selectedUserId, setSelectedUserId] = useState('all');
+  const [userList, setUserList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      authApi.getUsers().then((res) => {
+        if (res.success && res.data) {
+          setUserList(res.data);
+        }
+      }).catch((err) => console.error('Error fetching users:', err));
+    }
+  }, [isSuperAdmin]);
 
   const fetchReportData = useCallback(async () => {
     try {
@@ -34,6 +49,7 @@ export const MonthlyReportPage = ({ onAddNew }) => {
       const res = await recordsApi.getRecords({
         month: selectedMonth,
         year: selectedYear,
+        ...(isSuperAdmin && selectedUserId ? { userId: selectedUserId } : {}),
         limit: 1000,
         sortBy: 'sl',
         sortOrder: 'asc',
@@ -48,7 +64,7 @@ export const MonthlyReportPage = ({ onAddNew }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedMonth, selectedYear, toast]);
+  }, [selectedMonth, selectedYear, selectedUserId, isSuperAdmin, toast]);
 
   useEffect(() => {
     fetchReportData();
@@ -120,6 +136,28 @@ export const MonthlyReportPage = ({ onAddNew }) => {
 
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Super Admin User Filter */}
+          {isSuperAdmin && userList.length > 0 && (
+            <div className="relative">
+              <select
+                value={selectedUserId}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+                className="py-1.5 px-2.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 focus-ring"
+                title="Filter report by user account"
+              >
+                <option value="all">🌐 All Accounts (Combined Report)</option>
+                <option value="me">👤 My Records Only</option>
+                <optgroup label="Staff Accounts">
+                  {userList.map((u) => (
+                    <option key={u._id} value={u._id}>
+                      {u.name} (@{u.username || u.email})
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+          )}
+
           {/* Month & Year Selectors */}
           <MonthYearPicker
             selectedMonth={selectedMonth}

@@ -12,6 +12,10 @@ export const SearchFilterBar = ({
   filterDate,
   onDateChange,
   onClearFilters,
+  isSuperAdmin = false,
+  users = [],
+  selectedUserId = 'all',
+  onUserChange,
 }) => {
   const [localSearch, setLocalSearch] = useState(searchTerm);
 
@@ -28,7 +32,7 @@ export const SearchFilterBar = ({
   }, [searchTerm]);
 
   const hasActiveFilters = Boolean(
-    localSearch || filterDate
+    localSearch || filterDate || (isSuperAdmin && selectedUserId !== 'all')
   );
 
   return (
@@ -59,6 +63,28 @@ export const SearchFilterBar = ({
 
       {/* Filter Controls Row */}
       <div className="flex flex-wrap items-center gap-2.5">
+        {/* Super Admin: User Selector */}
+        {isSuperAdmin && users.length > 0 && (
+          <div className="relative">
+            <select
+              value={selectedUserId}
+              onChange={(e) => onUserChange && onUserChange(e.target.value)}
+              className="py-1.5 px-2.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 focus-ring"
+              title="Filter records by user account"
+            >
+              <option value="all">🌐 All Users' Records</option>
+              <option value="me">👤 My Records Only</option>
+              <optgroup label="Staff Accounts">
+                {users.map((u) => (
+                  <option key={u._id} value={u._id}>
+                    {u.name} (@{u.username || u.email})
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+          </div>
+        )}
+
         {/* Month & Year Selectors */}
         <MonthYearPicker
           selectedMonth={selectedMonth}

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { recordsApi } from '../services/recordsApi';
 import { useSettings } from '../context/SettingsContext';
+import { useAuth } from '../context/AuthContext';
+import { authApi } from '../services/authApi';
 import { useToast } from '../context/ToastContext';
 import { RecordTable } from '../components/records/RecordTable';
 import { SearchFilterBar } from '../components/records/SearchFilterBar';
@@ -13,13 +15,27 @@ import { PlusCircle, Camera, Download, FileSpreadsheet, FileType } from 'lucide-
 
 export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
   const toast = useToast();
+  const { isSuperAdmin } = useAuth();
   const { settings, selectedMonth, selectedYear, setSelectedMonth, setSelectedYear } = useSettings();
 
   const [records, setRecords] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 1 });
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDate, setFilterDate] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState('all');
+  const [userList, setUserList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Load user list for super admin filtering
+  useEffect(() => {
+    if (isSuperAdmin) {
+      authApi.getUsers().then((res) => {
+        if (res.success && res.data) {
+          setUserList(res.data);
+        }
+      }).catch((err) => console.error('Error fetching users for filter:', err));
+    }
+  }, [isSuperAdmin]);
 
   // Modals state
   const [editingRecord, setEditingRecord] = useState(null);
@@ -36,6 +52,7 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
         year: selectedYear,
         search: searchTerm,
         date: filterDate,
+        ...(isSuperAdmin && selectedUserId ? { userId: selectedUserId } : {}),
         page,
         limit: 50,
       });
@@ -50,7 +67,7 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedMonth, selectedYear, searchTerm, filterDate, toast]);
+  }, [selectedMonth, selectedYear, searchTerm, filterDate, selectedUserId, isSuperAdmin, toast]);
 
   useEffect(() => {
     fetchRecords(1);
@@ -59,6 +76,7 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
   const handleClearFilters = () => {
     setSearchTerm('');
     setFilterDate('');
+    setSelectedUserId('all');
   };
 
   const handleDeleteConfirm = async () => {
@@ -210,6 +228,10 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
         filterDate={filterDate}
         onDateChange={setFilterDate}
         onClearFilters={handleClearFilters}
+        isSuperAdmin={isSuperAdmin}
+        users={userList}
+        selectedUserId={selectedUserId}
+        onUserChange={setSelectedUserId}
       />
 
       {/* Main Records Table */}

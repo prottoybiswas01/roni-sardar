@@ -130,17 +130,15 @@ export const RecordTable = ({
                           <Edit3 className="w-4 h-4" />
                         </button>
 
-                        {isManager && (
-                          <button
-                            type="button"
-                            onClick={() => onDelete(record)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                            title="Delete record"
-                            aria-label="Delete record"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => onDelete(record)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                          title="Delete record"
+                          aria-label="Delete record"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -179,16 +177,14 @@ export const RecordTable = ({
                     <Edit3 className="w-4 h-4" />
                   </button>
 
-                  {isManager && (
-                    <button
-                      type="button"
-                      onClick={() => onDelete(record)}
-                      className="p-1.5 text-slate-500 hover:text-rose-600 rounded-lg hover:bg-rose-50"
-                      aria-label="Delete"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => onDelete(record)}
+                    className="p-1.5 text-slate-500 hover:text-rose-600 rounded-lg hover:bg-rose-50"
+                    aria-label="Delete"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
 
