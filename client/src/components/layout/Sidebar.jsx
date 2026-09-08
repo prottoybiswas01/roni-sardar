@@ -47,6 +47,12 @@ export const Sidebar = ({
       icon: FileText,
     },
     {
+      id: 'backup',
+      label: 'Backup & Recovery',
+      icon: Database,
+      badge: 'AUTO',
+    },
+    {
       id: 'settings',
       label: 'Settings',
       icon: Settings,
@@ -57,12 +63,6 @@ export const Sidebar = ({
             id: 'users',
             label: 'User Management',
             icon: Users,
-          },
-          {
-            id: 'backup',
-            label: 'Backup & Recovery',
-            icon: Database,
-            badge: 'Auto',
           },
         ]
       : []),

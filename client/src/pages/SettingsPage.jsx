@@ -382,6 +382,19 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
           General Hospital Info
         </button>
 
+        <button
+          type="button"
+          onClick={() => setActiveTab('backup')}
+          className={`pb-3 border-b-2 flex items-center gap-2 transition-colors ${
+            activeTab === 'backup'
+              ? 'border-brand-600 text-brand-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Database className="w-4 h-4" />
+          Database Backup & Recovery
+        </button>
+
         {isAdmin && (
           <button
             type="button"
@@ -399,21 +412,6 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                 {pendingCount} Pending
               </span>
             )}
-          </button>
-        )}
-
-        {isAdmin && (
-          <button
-            type="button"
-            onClick={() => setActiveTab('backup')}
-            className={`pb-3 border-b-2 flex items-center gap-2 transition-colors ${
-              activeTab === 'backup'
-                ? 'border-brand-600 text-brand-600'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Database className="w-4 h-4" />
-            Database Backup & Recovery
           </button>
         )}
       </div>
