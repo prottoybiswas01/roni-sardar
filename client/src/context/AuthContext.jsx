@@ -62,6 +62,23 @@ export const AuthProvider = ({ children }) => {
     return res;
   };
 
+  const verifyEmailOtp = async (email, otp) => {
+    const res = await authApi.verifyEmailOtp({ email, otp });
+    if (res.success && res.data) {
+      const { token: newToken, ...userData } = res.data;
+      setToken(newToken);
+      setUser(userData);
+      localStorage.setItem('token', newToken);
+      localStorage.setItem('user', JSON.stringify(userData));
+      return res.data;
+    }
+    throw new Error(res.message || 'Verification failed');
+  };
+
+  const resendEmailOtp = async (email) => {
+    return await authApi.resendEmailOtp(email);
+  };
+
   const refreshUser = async () => {
     if (token) {
       try {
@@ -95,6 +112,8 @@ export const AuthProvider = ({ children }) => {
     isLoading,
     login,
     register,
+    verifyEmailOtp,
+    resendEmailOtp,
     logout,
     refreshUser,
   };

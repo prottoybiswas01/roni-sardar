@@ -15,6 +15,20 @@ export const authApi = {
     });
   },
 
+  verifyEmailOtp: async ({ email, otp }) => {
+    return await apiClient('/auth/verify-email-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email, otp }),
+    });
+  },
+
+  resendEmailOtp: async (email) => {
+    return await apiClient('/auth/resend-email-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+
   getMe: async () => {
     return await apiClient('/auth/me');
   },
@@ -38,9 +52,23 @@ export const authApi = {
     });
   },
 
+  sendDeleteUserOtp: async (id) => {
+    return await apiClient(`/auth/users/${id}/send-delete-otp`, {
+      method: 'POST',
+    });
+  },
+
+  verifyAndDeleteUser: async (id, otp) => {
+    return await apiClient(`/auth/users/${id}/verify-delete`, {
+      method: 'POST',
+      body: JSON.stringify({ otp }),
+    });
+  },
+
   deleteUser: async (id) => {
     return await apiClient(`/auth/users/${id}`, {
       method: 'DELETE',
     });
   },
 };
+

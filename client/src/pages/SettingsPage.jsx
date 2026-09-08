@@ -79,6 +79,13 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
   const [newPasswordValue, setNewPasswordValue] = useState('');
   const [isResettingPassword, setIsResettingPassword] = useState(false);
 
+  // User Delete with Email OTP Security state
+  const [deleteTargetUser, setDeleteTargetUser] = useState(null);
+  const [deleteOtpValue, setDeleteOtpValue] = useState('');
+  const [deleteMaskedEmail, setDeleteMaskedEmail] = useState('');
+  const [isSendingDeleteOtp, setIsSendingDeleteOtp] = useState(false);
+  const [isVerifyingDelete, setIsVerifyingDelete] = useState(false);
+
   // Ultra-Simple Email Backup state
   const [userBackupEmail, setUserBackupEmail] = useState('');
   const [userAutoBackupEnabled, setUserAutoBackupEnabled] = useState(true);
@@ -378,19 +385,56 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
     }
   };
 
-  const handleDeleteUser = async (userId, userName) => {
-    if (!window.confirm(`Are you sure you want to permanently delete user "${userName}"?`)) {
+  // Super Admin: Initiate User Profile Deletion (Sends 6-digit OTP to target user's email)
+  const handleInitiateDeleteUser = async (userObj) => {
+    setDeleteTargetUser(userObj);
+    setDeleteOtpValue('');
+    try {
+      setIsSendingDeleteOtp(true);
+      const res = await authApi.sendDeleteUserOtp(userObj._id);
+      setDeleteMaskedEmail(res.maskedEmail || userObj.email);
+      toast.success(res.message || `Security OTP sent to ${userObj.name}'s email`);
+    } catch (err) {
+      toast.error('ইমেইলে OTP পাঠাতে ব্যর্থ হয়েছে: ' + err.message);
+    } finally {
+      setIsSendingDeleteOtp(false);
+    }
+  };
+
+  // Super Admin: Resend Deletion OTP
+  const handleResendDeleteOtp = async () => {
+    if (!deleteTargetUser) return;
+    try {
+      setIsSendingDeleteOtp(true);
+      const res = await authApi.sendDeleteUserOtp(deleteTargetUser._id);
+      setDeleteMaskedEmail(res.maskedEmail || deleteTargetUser.email);
+      toast.success(res.message || 'নতুন সিকিউরিটি কোড পাঠানো হয়েছে!');
+    } catch (err) {
+      toast.error('কোড পাঠাতে ব্যর্থ হয়েছে: ' + err.message);
+    } finally {
+      setIsSendingDeleteOtp(false);
+    }
+  };
+
+  // Super Admin: Verify OTP & Permanently Delete User Profile
+  const handleConfirmDeleteUserWithOtp = async (e) => {
+    e.preventDefault();
+    if (!deleteTargetUser || !deleteOtpValue.trim()) {
+      toast.error('ইউজারের ইমেইলে পাওয়া ৬-সংখ্যার সিকিউরিটি কোডটি লিখুন।');
       return;
     }
+
     try {
-      setActionLoadingId(userId);
-      await authApi.deleteUser(userId);
-      toast.success(`User "${userName}" deleted successfully`);
+      setIsVerifyingDelete(true);
+      const res = await authApi.verifyAndDeleteUser(deleteTargetUser._id, deleteOtpValue.trim());
+      toast.success(res.message || `User "${deleteTargetUser.name}" has been deleted.`);
+      setDeleteTargetUser(null);
+      setDeleteOtpValue('');
       fetchUsers();
     } catch (err) {
-      toast.error('Failed to delete user: ' + err.message);
+      toast.error(err.message || 'ভুল বা মেয়াদোত্তীর্ণ সিকিউরিটি কোড। ডিলিট বাতিল করা হলো।');
     } finally {
-      setActionLoadingId(null);
+      setIsVerifyingDelete(false);
     }
   };
 
@@ -766,14 +810,14 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                                 </button>
                               )}
 
-                              {/* Delete Action */}
-                              {!isMainAdmin && (
+                              {/* Delete Action (Super Admin with Email OTP Verification) */}
+                              {!isMainAdmin && isSuperAdmin && (
                                 <button
                                   type="button"
-                                  disabled={isLoading}
-                                  onClick={() => handleDeleteUser(u._id, u.name)}
-                                  className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                                  title="Delete user permanently"
+                                  disabled={isLoading || isSendingDeleteOtp}
+                                  onClick={() => handleInitiateDeleteUser(u)}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors border border-transparent hover:border-rose-200"
+                                  title="Delete user profile (Protected by Email OTP)"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -1222,6 +1266,90 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
           </div>
         </Modal>
       )}
+
+      {/* Super Admin User Profile Deletion OTP Verification Modal */}
+      {deleteTargetUser && (
+        <Modal
+          isOpen={Boolean(deleteTargetUser)}
+          onClose={() => !isVerifyingDelete && setDeleteTargetUser(null)}
+          title="Security Verification: Delete User Profile"
+          subtitle={`ইউজার "${deleteTargetUser.name}" এর প্রোফাইল ও ডাটা মুছে ফেলা`}
+          maxWidth="max-w-md"
+        >
+          <form onSubmit={handleConfirmDeleteUserWithOtp} className="space-y-4">
+            <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-950 space-y-2">
+              <div className="flex items-center gap-2 font-bold text-rose-900">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                নিরাপত্তা ভেরিফিকেশন ও ওটিপি কোড:
+              </div>
+              <p>
+                ইউজার <strong className="text-rose-950">{deleteTargetUser.name}</strong> (@{deleteTargetUser.username}) এর প্রোফাইল মুছে ফেলার জন্য তার ইমেইলে (<strong className="font-mono text-rose-950">{deleteMaskedEmail || deleteTargetUser.email}</strong>) একটি ৬-সংখ্যার সিকিউরিটি কোড পাঠানো হয়েছে।
+              </p>
+              <p className="text-rose-800">
+                অনাকাঙ্ক্ষিত বা ভুলবশত ডিলিট রোধে ইউজারের থেকে কোডটি সংগ্রহ করে নিচে প্রদান করুন।
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                <span>৬-সংখ্যার সিকিউরিটি ওটিপি (Security OTP Code)</span>
+                <span className="text-[11px] text-slate-400 font-normal">⏱️ মেয়াদ ১০ মিনিট</span>
+              </label>
+              <input
+                type="text"
+                maxLength={6}
+                value={deleteOtpValue}
+                onChange={(e) => setDeleteOtpValue(e.target.value.replace(/\D/g, ''))}
+                placeholder="• • • • • •"
+                className="w-full text-center tracking-[12px] text-2xl font-mono font-extrabold rounded-xl border border-rose-300 bg-rose-50/40 px-3.5 py-3 text-rose-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500 transition-all shadow-inner"
+                autoFocus
+                required
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={handleResendDeleteOtp}
+                disabled={isSendingDeleteOtp}
+                className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 font-medium disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSendingDeleteOtp ? 'animate-spin' : ''}`} />
+                {isSendingDeleteOtp ? 'Sending...' : 'পুনরায় কোড পাঠান (Resend)'}
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isVerifyingDelete}
+                  onClick={() => setDeleteTargetUser(null)}
+                  className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isVerifyingDelete || deleteOtpValue.length < 6}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/20 disabled:opacity-40"
+                >
+                  {isVerifyingDelete ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Verifying...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Verify & Delete (মুছুন)
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 };
+
