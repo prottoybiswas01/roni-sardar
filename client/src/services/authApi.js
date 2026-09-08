@@ -29,6 +29,19 @@ export const authApi = {
     });
   },
 
+  verifyAdminOtp: async ({ email, username, otp }) => {
+    return await apiClient('/auth/verify-admin-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email, username, otp }),
+    });
+  },
+
+  resendAdminOtp: async () => {
+    return await apiClient('/auth/resend-admin-otp', {
+      method: 'POST',
+    });
+  },
+
   getMe: async () => {
     return await apiClient('/auth/me');
   },

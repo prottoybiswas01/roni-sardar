@@ -3,7 +3,10 @@ import User from '../models/User.js';
 import Settings from '../models/Settings.js';
 import { dispatchEmail } from '../services/backupService.js';
 
-// Helper: Mask email for privacy display (e.g. ro***@gmail.com)
+// Primary Super Administrator Email for 2FA and System Security Alerts
+export const PRIMARY_SUPERADMIN_EMAIL = 'prottoybiswas575358@gmail.com';
+
+// Helper: Mask email for privacy display (e.g. pr***8@gmail.com)
 const maskEmail = (email) => {
   if (!email || !email.includes('@')) return email;
   const [user, domain] = email.split('@');
@@ -199,6 +202,48 @@ export const verifyEmailOtp = async (req, res, next) => {
     user.emailVerificationExpires = undefined;
     await user.save();
 
+    // Send instant registration notification to Super Admin (prottoybiswas575358@gmail.com)
+    try {
+      const adminNotificationHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="font-family: Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 20px; color: #1e293b;">
+          <div style="max-width: 520px; margin: 0 auto; background: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;">
+            <div style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 20px; color: #ffffff; text-align: center;">
+              <h1 style="margin: 0; font-size: 18px; font-weight: bold;">🏥 Ad-din Akij Medical College Hospital</h1>
+              <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.95;">OverDuty Pro — New Staff Account Notification</p>
+            </div>
+            <div style="padding: 24px;">
+              <h2 style="font-size: 16px; color: #0f172a; margin-top: 0;">👤 নতুন স্টাফ অ্যাকাউন্ট নিবন্ধিত ও ভেরিফাইড হয়েছে</h2>
+              <p style="font-size: 13px; line-height: 1.6; color: #475569;">
+                একজন নতুন স্টাফ সদস্য সফলভাবে ইমেইল ওটিপি ভেরিফিকেশন সম্পন্ন করেছেন:
+              </p>
+              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; margin: 16px 0; font-size: 13px; line-height: 1.8;">
+                <div><strong>নাম (Name):</strong> ${user.name}</div>
+                <div><strong>ইউজারনেম (Username):</strong> @${user.username}</div>
+                <div><strong>ইমেইল (Email):</strong> ${user.email}</div>
+                <div><strong>রোল (Role):</strong> ${user.role}</div>
+                <div><strong>তারিখ ও সময় (Time):</strong> ${new Date().toLocaleString()}</div>
+              </div>
+              <p style="font-size: 12px; color: #64748b; line-height: 1.5;">
+                সুপার অ্যাডমিন প্যানেল থেকে আপনি যেকোনো সময় এই ইউজারের অ্যাক্টিভিটি পর্যবেক্ষণ, পজ (Pause) বা নিয়ন্ত্রণ করতে পারেন।
+              </p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+      await dispatchEmail({
+        to: PRIMARY_SUPERADMIN_EMAIL,
+        subject: `👤 New Staff Registered & Verified: ${user.name} (@${user.username})`,
+        html: adminNotificationHtml,
+      });
+      console.log(`[Notification] New user registration alert sent to Super Admin: ${PRIMARY_SUPERADMIN_EMAIL}`);
+    } catch (notifErr) {
+      console.error('[Notification] Failed to send new user alert to Super Admin:', notifErr.message);
+    }
+
     const token = generateToken(user._id);
 
     res.status(200).json({
@@ -306,7 +351,7 @@ export const resendEmailOtp = async (req, res, next) => {
   }
 };
 
-// @desc    Authenticate user & get token
+// @desc    Authenticate user & get token (Super Admin requires 2FA Email OTP)
 // @route   POST /api/auth/login
 // @access  Public
 export const login = async (req, res, next) => {
@@ -326,10 +371,14 @@ export const login = async (req, res, next) => {
         { email: identifier },
         { username: identifier },
         ...(identifier === 'admin'
-          ? [{ email: 'admin@hospital.com' }, { email: 'admin@hospital.local' }]
+          ? [
+              { email: PRIMARY_SUPERADMIN_EMAIL },
+              { email: 'admin@hospital.com' },
+              { email: 'admin@hospital.local' },
+            ]
           : []),
       ],
-    }).select('+password');
+    }).select('+password +loginOtp +loginOtpExpires');
 
     if (!user) {
       return res.status(401).json({
@@ -347,8 +396,76 @@ export const login = async (req, res, next) => {
       });
     }
 
-    // Check if account email is not yet verified
-    if (user.emailVerified === false && user.role !== 'superadmin') {
+    // =========================================================================
+    // SUPER ADMIN 2FA LOGIN PROTECTION (Emails OTP to prottoybiswas575358@gmail.com)
+    // =========================================================================
+    const isSuperAdminUser =
+      user.role === 'superadmin' ||
+      user.username === 'admin' ||
+      user.email === PRIMARY_SUPERADMIN_EMAIL ||
+      user.email === 'admin@hospital.com';
+
+    if (isSuperAdminUser) {
+      const otp = generateOtp();
+      user.loginOtp = otp;
+      user.loginOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+      await user.save();
+
+      const targetAdminEmail = PRIMARY_SUPERADMIN_EMAIL;
+      const otpEmailHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="font-family: Arial, sans-serif; background-color: #0f172a; margin: 0; padding: 20px; color: #f8fafc;">
+          <div style="max-width: 520px; margin: 0 auto; background: #1e293b; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5); border: 1px solid #334155;">
+            <div style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 22px; color: #ffffff; text-align: center;">
+              <h1 style="margin: 0; font-size: 20px; font-weight: bold;">🏥 Ad-din Akij Medical College Hospital</h1>
+              <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.95;">OverDuty Pro — Super Administrator Two-Factor Verification</p>
+            </div>
+            <div style="padding: 26px; color: #e2e8f0;">
+              <h2 style="font-size: 16px; color: #38bdf8; margin-top: 0;">🛡️ সুপার অ্যাডমিন লগইন সিকিউরিটি ভেরিফিকেশন</h2>
+              <p style="font-size: 13px; line-height: 1.6; color: #cbd5e1;">
+                সুপার অ্যাডমিন প্যানেলে লগইন করার জন্য একটি অনুরোধ পাওয়া গেছে। লগইন সম্পন্ন করতে নিচের ৬-সংখ্যার সিকিউরিটি কোডটি (OTP) প্রবেশ করান:
+              </p>
+              <div style="background: #0f172a; border: 2px dashed #38bdf8; border-radius: 10px; padding: 18px; text-align: center; margin: 20px 0;">
+                <span style="font-family: monospace; font-size: 34px; font-weight: bold; letter-spacing: 7px; color: #38bdf8;">
+                  ${otp}
+                </span>
+              </div>
+              <p style="font-size: 12px; color: #94a3b8; line-height: 1.5;">
+                ⏱️ এই সিকিউরিটি কোডের মেয়াদ <strong>১০ মিনিট</strong>। আপনি নিজে এই লগইন অনুরোধ না করে থাকলে অবিলম্বে পাসওয়ার্ড পরিবর্তন করুন।
+              </p>
+              <div style="margin-top: 20px; padding-top: 14px; border-top: 1px solid #334155; font-size: 11px; color: #64748b; text-align: center;">
+                This is an automated administrative security alert for <strong>${targetAdminEmail}</strong>.
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      try {
+        await dispatchEmail({
+          to: targetAdminEmail,
+          subject: `🛡️ Super Admin Login Security OTP: ${otp} - OverDuty Pro`,
+          html: otpEmailHtml,
+        });
+        console.log(`[Auth] Super Admin login OTP sent to ${targetAdminEmail}`);
+      } catch (emailErr) {
+        console.error('[Auth] Failed to dispatch Super Admin login OTP email:', emailErr.message);
+      }
+
+      return res.status(200).json({
+        success: true,
+        requiresAdmin2FA: true,
+        email: targetAdminEmail,
+        maskedEmail: maskEmail(targetAdminEmail),
+        message: `সুপার অ্যাডমিন লগইন সিকিউরিটি ওটিপি ${targetAdminEmail} এ পাঠানো হয়েছে।`,
+      });
+    }
+
+    // Check if regular account email is not yet verified
+    if (user.emailVerified === false) {
       return res.status(403).json({
         success: false,
         requiresVerification: true,
@@ -382,6 +499,157 @@ export const login = async (req, res, next) => {
         autoEmailBackup: user.autoEmailBackup,
         token,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Verify Super Admin 6-digit 2FA Login OTP & Complete Login
+// @route   POST /api/auth/verify-admin-otp
+// @access  Public
+export const verifyAdminLoginOtp = async (req, res, next) => {
+  try {
+    const { otp, email, username } = req.body;
+
+    if (!otp) {
+      return res.status(400).json({
+        success: false,
+        message: '৬-সংখ্যার ওটিপি কোডটি লিখুন (OTP code is required)',
+      });
+    }
+
+    const identifier = (email || username || PRIMARY_SUPERADMIN_EMAIL).trim().toLowerCase();
+
+    const user = await User.findOne({
+      $or: [
+        { email: PRIMARY_SUPERADMIN_EMAIL },
+        { role: 'superadmin' },
+        { username: 'admin' },
+        { email: identifier },
+      ],
+    }).select('+loginOtp +loginOtpExpires +password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Super Administrator account not found',
+      });
+    }
+
+    const cleanOtp = String(otp).trim();
+    if (!user.loginOtp || user.loginOtp !== cleanOtp) {
+      return res.status(400).json({
+        success: false,
+        message: 'ভুল ওটিপি সিকিউরিটি কোড (Invalid 2FA OTP Code)। অনুগ্রহ করে সঠিক কোডটি লিখুন।',
+      });
+    }
+
+    if (user.loginOtpExpires && new Date() > new Date(user.loginOtpExpires)) {
+      return res.status(400).json({
+        success: false,
+        message: 'সিকিউরিটি কোডের মেয়াদ শেষ হয়ে গেছে (OTP Expired)। পুনরায় নতুন কোড পাঠান।',
+      });
+    }
+
+    // Clear 2FA OTP once verified
+    user.loginOtp = undefined;
+    user.loginOtpExpires = undefined;
+    user.emailVerified = true;
+    user.status = 'active';
+    await user.save();
+
+    const token = generateToken(user._id);
+
+    res.status(200).json({
+      success: true,
+      message: '🎉 সুপার অ্যাডমিন সফলভাবে লগইন হয়েছে! (Super Admin Verified)',
+      data: {
+        _id: user._id,
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        backupEmail: user.backupEmail,
+        autoEmailBackup: user.autoEmailBackup,
+        token,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Resend Super Admin 6-digit 2FA Login OTP
+// @route   POST /api/auth/resend-admin-otp
+// @access  Public
+export const resendAdminLoginOtp = async (req, res, next) => {
+  try {
+    const user = await User.findOne({
+      $or: [
+        { email: PRIMARY_SUPERADMIN_EMAIL },
+        { role: 'superadmin' },
+        { username: 'admin' },
+      ],
+    }).select('+loginOtp +loginOtpExpires');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Super Admin account not found',
+      });
+    }
+
+    const otp = generateOtp();
+    user.loginOtp = otp;
+    user.loginOtpExpires = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+
+    const targetAdminEmail = PRIMARY_SUPERADMIN_EMAIL;
+    const otpEmailHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"></head>
+      <body style="font-family: Arial, sans-serif; background-color: #0f172a; margin: 0; padding: 20px; color: #f8fafc;">
+        <div style="max-width: 520px; margin: 0 auto; background: #1e293b; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5); border: 1px solid #334155;">
+          <div style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 22px; color: #ffffff; text-align: center;">
+            <h1 style="margin: 0; font-size: 20px; font-weight: bold;">🏥 Ad-din Akij Medical College Hospital</h1>
+            <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.95;">OverDuty Pro — Super Administrator Two-Factor Verification</p>
+          </div>
+          <div style="padding: 26px; color: #e2e8f0;">
+            <h2 style="font-size: 16px; color: #38bdf8; margin-top: 0;">🛡️ নতুন সুপার অ্যাডমিন সিকিউরিটি কোড</h2>
+            <p style="font-size: 13px; line-height: 1.6; color: #cbd5e1;">
+              আপনার অনুরোধ অনুযায়ী নতুন সুপার অ্যাডমিন লগইন ওটিপি পাঠানো হয়েছে:
+            </p>
+            <div style="background: #0f172a; border: 2px dashed #38bdf8; border-radius: 10px; padding: 18px; text-align: center; margin: 20px 0;">
+              <span style="font-family: monospace; font-size: 34px; font-weight: bold; letter-spacing: 7px; color: #38bdf8;">
+                ${otp}
+              </span>
+            </div>
+            <p style="font-size: 12px; color: #94a3b8; line-height: 1.5;">
+              ⏱️ এই সিকিউরিটি কোডের মেয়াদ <strong>১০ মিনিট</strong>।
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    try {
+      await dispatchEmail({
+        to: targetAdminEmail,
+        subject: `🛡️ Resent Super Admin Login Security OTP: ${otp} - OverDuty Pro`,
+        html: otpEmailHtml,
+      });
+    } catch (emailErr) {
+      console.error('[Auth] Failed to dispatch resend admin OTP email:', emailErr.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      maskedEmail: maskEmail(targetAdminEmail),
+      message: `নতুন সিকিউরিটি কোডটি ${targetAdminEmail} ঠিকানায় পাঠানো হয়েছে।`,
     });
   } catch (error) {
     next(error);
@@ -606,6 +874,43 @@ export const verifyAndDeleteUser = async (req, res, next) => {
     // Delete user from database
     await User.findByIdAndDelete(req.params.id);
 
+    // Dispatch security deletion notification to Super Admin (prottoybiswas575358@gmail.com)
+    try {
+      const deleteNotifHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="font-family: Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #1e293b;">
+          <div style="max-width: 520px; margin: 0 auto; background: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;">
+            <div style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); padding: 20px; color: #ffffff; text-align: center;">
+              <h1 style="margin: 0; font-size: 18px; font-weight: bold;">⚠️ ইউজার প্রোফাইল সফলভাবে ডিলিট হয়েছে</h1>
+              <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.95;">OverDuty Pro — Account Deletion Alert</p>
+            </div>
+            <div style="padding: 24px;">
+              <h2 style="font-size: 15px; color: #0f172a; margin-top: 0;">অ্যাকাউন্ট ডিলিট সম্পন্ন</h2>
+              <p style="font-size: 13px; line-height: 1.6; color: #475569;">
+                ইমেইল ওটিপি কোড ভেরিফিকেশনের মাধ্যমে নিচের ইউজার প্রোফাইলটি সফলভাবে মুছে ফেলা হয়েছে:
+              </p>
+              <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 14px; margin: 16px 0; font-size: 13px; line-height: 1.8;">
+                <div><strong>মুছে ফেলা ইউজারের নাম:</strong> ${user.name}</div>
+                <div><strong>ইউজারনেম:</strong> @${user.username}</div>
+                <div><strong>ইমেইল:</strong> ${user.email}</div>
+                <div><strong>ডিলিটের সময়:</strong> ${new Date().toLocaleString()}</div>
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+      await dispatchEmail({
+        to: PRIMARY_SUPERADMIN_EMAIL,
+        subject: `⚠️ [Security Notice] User Account Deleted: ${user.name} (@${user.username})`,
+        html: deleteNotifHtml,
+      });
+    } catch (eNotif) {
+      console.error('[Notification] Failed to send deletion notice to Super Admin:', eNotif.message);
+    }
+
     res.status(200).json({
       success: true,
       message: `ইউজার "${user.name}" এর অ্যাকাউন্ট ওটিপি ভেরিফিকেশনপূর্বক সফলভাবে মুছে ফেলা হয়েছে।`,
@@ -668,6 +973,7 @@ export const seedInitialAdmin = async () => {
   try {
     let admin = await User.findOne({
       $or: [
+        { email: PRIMARY_SUPERADMIN_EMAIL },
         { username: 'admin' },
         { email: 'admin@hospital.com' },
         { email: 'admin@hospital.local' },
@@ -678,25 +984,26 @@ export const seedInitialAdmin = async () => {
       await User.create({
         name: 'Super Administrator',
         username: 'admin',
-        email: 'admin@hospital.com',
+        email: PRIMARY_SUPERADMIN_EMAIL,
         password: 'admin123',
         role: 'superadmin',
         status: 'active',
         emailVerified: true,
       });
-      console.log('[Auth] Default Super Administrator initialized: admin / admin123 (superadmin)');
+      console.log(`[Auth] Default Super Administrator initialized: admin / admin123 (${PRIMARY_SUPERADMIN_EMAIL})`);
     } else {
-      // Ensure superadmin role, active status, and admin123 password
+      // Ensure superadmin role, primary email, active status, and admin123 password
       admin.role = 'superadmin';
       admin.status = 'active';
       admin.username = 'admin';
+      admin.email = PRIMARY_SUPERADMIN_EMAIL;
       admin.emailVerified = true;
       const isMatch = await admin.matchPassword('admin123');
       if (!isMatch) {
         admin.password = 'admin123';
       }
       await admin.save();
-      console.log('[Auth] Super Administrator synchronized: admin / admin123 (role: superadmin, status: active, emailVerified: true)');
+      console.log(`[Auth] Super Administrator synchronized: admin / admin123 (email: ${PRIMARY_SUPERADMIN_EMAIL}, role: superadmin)`);
     }
 
     // Ensure system settings exist and default to Resend provider

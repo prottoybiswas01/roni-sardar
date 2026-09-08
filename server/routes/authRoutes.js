@@ -4,6 +4,8 @@ import {
   verifyEmailOtp,
   resendEmailOtp,
   login,
+  verifyAdminLoginOtp,
+  resendAdminLoginOtp,
   getMe,
   getUsers,
   updateUser,
@@ -21,6 +23,8 @@ router.post('/register', register);
 router.post('/verify-email-otp', verifyEmailOtp);
 router.post('/resend-email-otp', resendEmailOtp);
 router.post('/login', login);
+router.post('/verify-admin-otp', verifyAdminLoginOtp);
+router.post('/resend-admin-otp', resendAdminLoginOtp);
 
 // Private User Routes
 router.get('/me', protect, getMe);

@@ -13,14 +13,17 @@ import {
   KeyRound,
   ArrowLeft,
   CheckCircle2,
+  Crown,
+  ShieldAlert,
 } from 'lucide-react';
 
 export const LoginPage = () => {
-  const { login, register, verifyEmailOtp, resendEmailOtp } = useAuth();
+  const { login, register, verifyEmailOtp, resendEmailOtp, verifyAdminOtp, resendAdminOtp } = useAuth();
   const toast = useToast();
 
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [isAdmin2FAMode, setIsAdmin2FAMode] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [verificationEmail, setVerificationEmail] = useState('');
   const [maskedEmail, setMaskedEmail] = useState('');
@@ -68,11 +71,18 @@ export const LoginPage = () => {
           setIsRegisterMode(false);
         }
       } else {
-        await login(formData.email, formData.password);
+        const res = await login(formData.email, formData.password);
+        if (res && res.requiresAdmin2FA) {
+          toast.success(res.message || 'Super Admin 2FA code sent to your primary email!');
+          setVerificationEmail(res.email || 'prottoybiswas575358@gmail.com');
+          setMaskedEmail(res.maskedEmail || 'prottoybiswas575358@gmail.com');
+          setOtpCode('');
+          setIsAdmin2FAMode(true);
+          return;
+        }
         toast.success('Welcome back! Logged in successfully.');
       }
     } catch (err) {
-      // Check if backend returned that email needs verification
       if (err.requiresVerification && err.email) {
         toast.warning(err.message || 'Please verify your email with OTP code');
         setVerificationEmail(err.email);
@@ -86,7 +96,39 @@ export const LoginPage = () => {
     }
   };
 
-  // Handle OTP Verification Submit
+  // Handle Super Admin 2FA Verification Submit
+  const handleAdmin2FASubmit = async (e) => {
+    e.preventDefault();
+    if (!otpCode || otpCode.trim().length < 6) {
+      toast.error('অনুগ্রহ করে ৬-সংখ্যার সিকিউরিটি OTP কোডটি লিখুন (Enter 6-digit code)');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      await verifyAdminOtp(otpCode.trim(), verificationEmail);
+      toast.success('👑 সুপার অ্যাডমিন প্যানেলে স্বাগতম! (Super Admin Verified)');
+    } catch (err) {
+      toast.error(err.message || 'ভুল বা মেয়াদোত্তীর্ণ সিকিউরিটি কোড। পুনরায় চেষ্টা করুন।');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle Resend Super Admin 2FA OTP
+  const handleResendAdmin2FA = async () => {
+    try {
+      setIsResending(true);
+      const res = await resendAdminOtp();
+      toast.success(res?.message || 'নতুন সিকিউরিটি কোড পাঠানো হয়েছে!');
+    } catch (err) {
+      toast.error(err.message || 'কোড পাঠাতে ব্যর্থ হয়েছে।');
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  // Handle Staff Registration OTP Verification Submit
   const handleVerifyOtpSubmit = async (e) => {
     e.preventDefault();
     if (!otpCode || otpCode.trim().length < 6) {
@@ -105,7 +147,7 @@ export const LoginPage = () => {
     }
   };
 
-  // Handle Resend OTP
+  // Handle Resend Staff OTP
   const handleResendOtp = async () => {
     if (!verificationEmail) return;
     try {
@@ -141,8 +183,85 @@ export const LoginPage = () => {
 
         {/* Card Container */}
         <div className="mt-8 bg-slate-800/90 border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-xl p-6 sm:p-8">
-          {/* SCREEN 1: OTP Verification Screen */}
-          {isVerifyingOtp ? (
+          {/* SCREEN 1: Super Admin 2FA Verification Screen */}
+          {isAdmin2FAMode ? (
+            <div className="space-y-5 animate-in fade-in duration-200">
+              <div className="text-center space-y-2">
+                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center mx-auto border border-amber-500/30 shadow-lg shadow-amber-500/10">
+                  <Crown className="w-7 h-7" />
+                </div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-500/10 border border-amber-400/30 text-[11px] font-bold text-amber-300">
+                  <ShieldCheck className="w-3.5 h-3.5" /> Super Admin 2FA Security
+                </div>
+                <h3 className="text-lg font-bold text-white">সুপার অ্যাডমিন ওটিপি ভেরিফিকেশন</h3>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  অ্যাডমিন প্যানেলে লগইন করতে আপনার অফিসিয়াল ইমেইল <br />
+                  <strong className="text-amber-300 font-mono text-sm">{maskedEmail || verificationEmail || 'prottoybiswas575358@gmail.com'}</strong>
+                  <br />এ পাঠানো ৬-সংখ্যার সিকিউরিটি ওটিপি কোডটি লিখুন।
+                </p>
+              </div>
+
+              <form onSubmit={handleAdmin2FASubmit} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                    <span>৬-সংখ্যার অ্যাডমিন ওটিপি (6-Digit OTP)</span>
+                    <span className="text-[11px] text-amber-400/90 font-normal">⏱️ মেয়াদ ১০ মিনিট</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="• • • • • •"
+                      className="w-full text-center tracking-[12px] text-2xl font-mono font-extrabold rounded-xl border border-amber-500/50 bg-slate-900/90 px-3.5 py-3 text-amber-300 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all shadow-inner"
+                      autoFocus
+                      required
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading || otpCode.length < 6}
+                  className="w-full mt-2 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-600 via-amber-500 to-yellow-500 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-amber-600/30 hover:from-amber-500 hover:to-yellow-400 transition-all active:scale-[0.98] disabled:opacity-40 cursor-pointer"
+                >
+                  {isLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                  ) : (
+                    <KeyRound className="w-4 h-4 text-slate-950" />
+                  )}
+                  ভেরিফাই ও প্রবেশ করুন (Verify & Access Admin)
+                </button>
+              </form>
+
+              {/* Resend & Back Buttons */}
+              <div className="pt-3 border-t border-slate-700/60 flex items-center justify-between text-xs">
+                <button
+                  type="button"
+                  onClick={handleResendAdmin2FA}
+                  disabled={isResending}
+                  className="inline-flex items-center gap-1 text-amber-400 hover:text-amber-300 font-medium transition-colors disabled:opacity-50"
+                >
+                  <RotateCcw className={`w-3.5 h-3.5 ${isResending ? 'animate-spin' : ''}`} />
+                  {isResending ? 'Sending...' : 'পুনরায় কোড পাঠান (Resend Code)'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAdmin2FAMode(false);
+                    setOtpCode('');
+                  }}
+                  className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-300 font-medium transition-colors"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  পিছনে যান (Back)
+                </button>
+              </div>
+            </div>
+          ) : isVerifyingOtp ? (
+            /* SCREEN 2: Staff Registration OTP Verification Screen */
             <div className="space-y-5 animate-in fade-in duration-200">
               <div className="text-center space-y-2">
                 <div className="w-12 h-12 rounded-2xl bg-sky-500/10 text-sky-400 flex items-center justify-center mx-auto border border-sky-500/20">
@@ -214,7 +333,7 @@ export const LoginPage = () => {
               </div>
             </div>
           ) : (
-            /* SCREEN 2: Login or Registration Form */
+            /* SCREEN 3: Login or Registration Form */
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Name Field (Only in Register Mode) */}
               {isRegisterMode && (

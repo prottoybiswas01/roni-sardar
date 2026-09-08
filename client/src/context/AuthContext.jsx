@@ -46,6 +46,9 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     const res = await authApi.login({ email, password });
+    if (res.requiresAdmin2FA) {
+      return res;
+    }
     if (res.success && res.data) {
       const { token: newToken, ...userData } = res.data;
       setToken(newToken);
@@ -77,6 +80,23 @@ export const AuthProvider = ({ children }) => {
 
   const resendEmailOtp = async (email) => {
     return await authApi.resendEmailOtp(email);
+  };
+
+  const verifyAdminOtp = async (otp, email) => {
+    const res = await authApi.verifyAdminOtp({ otp, email });
+    if (res.success && res.data) {
+      const { token: newToken, ...userData } = res.data;
+      setToken(newToken);
+      setUser(userData);
+      localStorage.setItem('token', newToken);
+      localStorage.setItem('user', JSON.stringify(userData));
+      return res.data;
+    }
+    throw new Error(res.message || 'Super Admin OTP verification failed');
+  };
+
+  const resendAdminOtp = async () => {
+    return await authApi.resendAdminOtp();
   };
 
   const refreshUser = async () => {
@@ -116,6 +136,8 @@ export const AuthProvider = ({ children }) => {
     register,
     verifyEmailOtp,
     resendEmailOtp,
+    verifyAdminOtp,
+    resendAdminOtp,
     logout,
     refreshUser,
   };
