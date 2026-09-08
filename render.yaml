@@ -13,3 +13,9 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_SENDER_EMAIL
+        value: backup@roni.kodl.uk
+      - key: RESEND_DOMAIN
+        value: roni.kodl.uk
