@@ -15,6 +15,7 @@ import {
   FileText,
   Loader2,
   Sparkles,
+  Lock,
 } from 'lucide-react';
 
 export const RecordForm = ({
@@ -224,56 +225,32 @@ export const RecordForm = ({
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* SL (Serial Number) - Automatic sequential numbering / Locked in Edit Mode */}
+        {/* SL (Serial Number) - Strictly Locked & Auto-Assigned */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
               <Hash className="w-3.5 h-3.5 text-brand-600" />
               SL (Serial Number)
             </label>
-            {initialData ? (
-              <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
-                Fixed (Locked)
-              </span>
-            ) : autoSlNumber ? (
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
-                Auto #{autoSlNumber}
-              </span>
-            ) : null}
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+              <Lock className="w-2.5 h-2.5 text-slate-500" />
+              Fixed (Locked)
+            </span>
           </div>
           <div className="relative">
             <input
-              type="number"
+              type="text"
               name="sl"
-              value={formData.sl}
-              onChange={handleChange}
-              disabled={Boolean(initialData)}
-              readOnly={Boolean(initialData)}
-              placeholder={isAutoSlLoading ? 'Calculating SL...' : (autoSlNumber ? `Auto #${autoSlNumber}` : 'Auto-generated')}
-              className={`w-full rounded-lg border px-3 py-2 text-sm font-semibold focus-ring ${
-                initialData
-                  ? 'border-slate-200 bg-slate-100 text-slate-600 cursor-not-allowed'
-                  : 'border-slate-300 bg-slate-50/90 text-slate-800'
-              }`}
+              value={formData.sl || autoSlNumber || (isAutoSlLoading ? '...' : '')}
+              readOnly
+              disabled
+              tabIndex={-1}
+              placeholder={isAutoSlLoading ? 'Calculating SL...' : (autoSlNumber ? `Auto #${autoSlNumber}` : 'Auto-assigned')}
+              className="w-full rounded-lg border border-slate-200 bg-slate-100/90 px-3 py-2 text-sm font-bold text-slate-700 cursor-not-allowed select-none shadow-inner"
             />
-            {!initialData && autoSlNumber && Number(formData.sl) !== Number(autoSlNumber) && (
-              <button
-                type="button"
-                onClick={() => setFormData((prev) => ({ ...prev, sl: autoSlNumber, _isAutoSl: true }))}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] bg-brand-50 hover:bg-brand-100 text-brand-700 font-medium px-2 py-0.5 rounded border border-brand-200 transition-colors"
-                title="Reset to next sequential monthly SL"
-              >
-                Reset to Auto #{autoSlNumber}
-              </button>
-            )}
           </div>
           <p className="text-[10px] text-slate-500">
-            {initialData
-              ? 'Serial number cannot be modified in edit mode'
-              : formData._isAutoSl !== false && autoSlNumber
-              ? '✨ Next monthly sequential number auto-assigned'
-              : 'Sequential monthly number (auto-increments on save)'}
+            🔒 Auto sequential monthly number (strictly locked & non-editable)
           </p>
         </div>
 
