@@ -43,6 +43,26 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [monthlyCounts, setMonthlyCounts] = useState({});
+
+  // Fetch monthly record counts for all 12 months for the selected year & user scope
+  const fetchMonthlyCounts = useCallback(async () => {
+    try {
+      const res = await recordsApi.getMonthlyCounts({
+        year: selectedYear,
+        ...(isSuperAdmin && selectedUserId ? { userId: selectedUserId } : {}),
+      });
+      if (res.success && res.data) {
+        setMonthlyCounts(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch monthly counts:', err);
+    }
+  }, [selectedYear, selectedUserId, isSuperAdmin]);
+
+  useEffect(() => {
+    fetchMonthlyCounts();
+  }, [fetchMonthlyCounts]);
 
   const fetchRecords = useCallback(async (page = 1) => {
     try {
@@ -249,6 +269,7 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
         users={userList}
         selectedUserId={selectedUserId}
         onUserChange={setSelectedUserId}
+        monthlyCounts={monthlyCounts}
       />
 
       {/* Main Records Table */}

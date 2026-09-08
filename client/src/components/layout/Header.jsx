@@ -1,8 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useSettings } from '../../context/SettingsContext';
 import { MonthYearPicker } from './MonthYearPicker';
 import { formatMonthYearHeader } from '../../utils/dateUtils';
+import { recordsApi } from '../../services/recordsApi';
 import {
   Menu,
   Building2,
@@ -21,7 +22,24 @@ export const Header = ({ onToggleSidebar, onNavigate }) => {
   const { user, role, logout } = useAuth();
   const { settings, selectedMonth, selectedYear, setSelectedMonth, setSelectedYear } = useSettings();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [headerMonthlyCounts, setHeaderMonthlyCounts] = useState({});
   const dropdownRef = useRef(null);
+
+  const fetchHeaderCounts = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await recordsApi.getMonthlyCounts({ year: selectedYear });
+      if (res.success && res.data) {
+        setHeaderMonthlyCounts(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to load header monthly counts:', err);
+    }
+  }, [user, selectedYear]);
+
+  useEffect(() => {
+    fetchHeaderCounts();
+  }, [fetchHeaderCounts]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -98,6 +116,7 @@ export const Header = ({ onToggleSidebar, onNavigate }) => {
                 onChangeMonth={setSelectedMonth}
                 onChangeYear={setSelectedYear}
                 compact={true}
+                monthlyCounts={headerMonthlyCounts}
               />
             </div>
 

@@ -9,6 +9,7 @@ export const MonthYearPicker = ({
   onChangeYear,
   className = '',
   compact = false,
+  monthlyCounts = null,
 }) => {
   const years = getAvailableYears(3, 8);
 
@@ -24,11 +25,15 @@ export const MonthYearPicker = ({
           }`}
           aria-label="Select Month"
         >
-          {MONTHS.map((m) => (
-            <option key={m.value} value={m.value}>
-              {m.name}
-            </option>
-          ))}
+          {MONTHS.map((m) => {
+            const count = monthlyCounts ? (monthlyCounts[m.value] ?? 0) : null;
+            const label = count !== null ? `${m.name} (${count})` : m.name;
+            return (
+              <option key={m.value} value={m.value}>
+                {label}
+              </option>
+            );
+          })}
         </select>
         <ChevronDown className="pointer-events-none absolute right-2.5 w-3.5 h-3.5 text-slate-400" />
       </div>

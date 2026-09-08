@@ -12,6 +12,7 @@ import {
   checkDuplicate,
   getDashboardStats,
   getNextSl,
+  getMonthlyCounts,
 } from '../controllers/recordController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -27,6 +28,7 @@ router.delete('/bin/:id/permanent', authorize('superadmin'), permanentDeleteReco
 
 // Active Records & Utility Routes
 router.get('/dashboard-stats', getDashboardStats);
+router.get('/monthly-counts', getMonthlyCounts);
 router.get('/check-duplicate', checkDuplicate);
 router.get('/next-sl', getNextSl);
 router.get('/', getRecords);

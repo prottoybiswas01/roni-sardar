@@ -32,6 +32,7 @@ export const MonthlyReportPage = ({ onAddNew }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [monthlyCounts, setMonthlyCounts] = useState({});
 
   useEffect(() => {
     if (isSuperAdmin) {
@@ -42,6 +43,25 @@ export const MonthlyReportPage = ({ onAddNew }) => {
       }).catch((err) => console.error('Error fetching users:', err));
     }
   }, [isSuperAdmin]);
+
+  // Fetch record counts for all 12 months for the selected year & user scope
+  const fetchMonthlyCounts = useCallback(async () => {
+    try {
+      const res = await recordsApi.getMonthlyCounts({
+        year: selectedYear,
+        ...(isSuperAdmin && selectedUserId ? { userId: selectedUserId } : {}),
+      });
+      if (res.success && res.data) {
+        setMonthlyCounts(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch monthly counts:', err);
+    }
+  }, [selectedYear, selectedUserId, isSuperAdmin]);
+
+  useEffect(() => {
+    fetchMonthlyCounts();
+  }, [fetchMonthlyCounts]);
 
   const fetchReportData = useCallback(async () => {
     try {
@@ -178,6 +198,7 @@ export const MonthlyReportPage = ({ onAddNew }) => {
             selectedYear={selectedYear}
             onChangeMonth={setSelectedMonth}
             onChangeYear={setSelectedYear}
+            monthlyCounts={monthlyCounts}
           />
 
           <button

@@ -703,3 +703,62 @@ export const getDashboardStats = async (req, res, next) => {
   }
 };
 
+// @desc    Get monthly entry counts for all 12 months for a given year & user scope
+// @route   GET /api/records/monthly-counts
+// @access  Private
+export const getMonthlyCounts = async (req, res, next) => {
+  try {
+    const { year, userId } = req.query;
+    const targetYear = year && !isNaN(Number(year)) ? Number(year) : new Date().getFullYear();
+
+    const query = {
+      year: targetYear,
+      isDeleted: { $ne: true },
+    };
+
+    // Strict user data scoping
+    if (req.user && (req.user.role === 'superadmin' || req.user.role === 'admin') && userId) {
+      if (userId === 'all') {
+        // Combined across all staff accounts
+      } else if (userId !== 'me') {
+        if (mongoose.Types.ObjectId.isValid(userId)) {
+          query.createdBy = new mongoose.Types.ObjectId(userId);
+        } else {
+          query.createdBy = userId;
+        }
+      } else {
+        query.createdBy = req.user._id;
+      }
+    } else {
+      query.createdBy = req.user ? req.user._id : null;
+    }
+
+    const counts = await Record.aggregate([
+      { $match: query },
+      {
+        $group: {
+          _id: '$month',
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const monthlyCounts = {};
+    for (let m = 1; m <= 12; m++) {
+      monthlyCounts[m] = 0;
+    }
+    counts.forEach((c) => {
+      if (c._id >= 1 && c._id <= 12) {
+        monthlyCounts[c._id] = c.count;
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      year: targetYear,
+      data: monthlyCounts,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

@@ -16,6 +16,7 @@ export const SearchFilterBar = ({
   users = [],
   selectedUserId = 'all',
   onUserChange,
+  monthlyCounts = null,
 }) => {
   const [localSearch, setLocalSearch] = useState(searchTerm);
 
@@ -91,6 +92,7 @@ export const SearchFilterBar = ({
           selectedYear={selectedYear}
           onChangeMonth={onMonthChange}
           onChangeYear={onYearChange}
+          monthlyCounts={monthlyCounts}
         />
 
         {/* Specific Date Filter */}

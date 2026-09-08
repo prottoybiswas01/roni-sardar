@@ -73,6 +73,14 @@ export const recordsApi = {
     return await apiClient(`/records/next-sl${queryString}`);
   },
 
+  getMonthlyCounts: async (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.year) query.append('year', params.year);
+    if (params.userId) query.append('userId', params.userId);
+    const queryString = query.toString() ? `?${query.toString()}` : '';
+    return await apiClient(`/records/monthly-counts${queryString}`);
+  },
+
   // Recycle Bin / Trash API
   getBinRecords: async (params = {}) => {
     const query = new URLSearchParams();
