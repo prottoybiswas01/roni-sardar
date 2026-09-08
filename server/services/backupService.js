@@ -90,8 +90,8 @@ export const saveLocalSnapshot = async () => {
   }
 };
 
-// 5. Official Resend SDK Email Sender
-export const sendResendEmail = async ({ apiKey, from, to, subject, html, attachments = [] }) => {
+// 5. Official Resend SDK Email Sender with High Deliverability Headers
+export const sendResendEmail = async ({ apiKey, from, to, subject, html, text, attachments = [] }) => {
   const resendApiKey = apiKey || process.env.RESEND_API_KEY;
   if (!resendApiKey) {
     throw new Error('Resend API Key is missing. Please configure it in .env (RESEND_API_KEY).');
@@ -106,12 +106,27 @@ export const sendResendEmail = async ({ apiKey, from, to, subject, html, attachm
       : Buffer.from(att.content || att.data || ''),
   }));
 
+  // Auto-generate plaintext from html if not provided to pass Google Anti-Spam filter
+  const plainText =
+    text ||
+    (html
+      ? html
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/\s{2,}/g, ' ')
+          .trim()
+      : '');
+
   const payload = {
     from: from || 'OverDuty Hospital Backup <backup@roni.kodl.uk>',
     to: Array.isArray(to) ? to : [to],
     replyTo: 'backup@roni.kodl.uk',
     subject,
     html,
+    text: plainText,
+    headers: {
+      'X-Entity-Ref-ID': 'hospital-system-transactional',
+    },
   };
 
   if (formattedAttachments.length > 0) {
