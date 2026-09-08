@@ -4,19 +4,20 @@ import { formatDateDotShort, formatHospitalTime, MONTHS } from '../utils/dateUti
 import { formatSL } from '../utils/formatters';
 
 /**
- * Generate and download a formatted monochrome black & white PDF report
- * Exactly matching Ad-din Akij Medical College Hospital "One Call" format.
- * High-density layout supporting 40-50 rows per page with fixed bottom signatures.
+ * Creates the official vector A4 PDF document matching Ad-din Akij Medical College Hospital "One Call" format.
  */
-export const exportMonthlyReportToPDF = ({
+export const createMonthlyReportPDFDoc = ({
   records = [],
   month,
   year,
   hospitalName = 'AD-DIN AKIJ MEDICAL COLLEGE HOSPITAL',
 }) => {
   const monthObj = MONTHS.find((m) => m.value === Number(month));
-  const monthName = monthObj ? monthObj.name : 'All Months';
-  const monthYearString = `${monthName} ${year}`;
+  const monthName = monthObj ? monthObj.name.toUpperCase() : 'ALL';
+  const monthYearString =
+    month === 'all' || !month
+      ? `${year}`
+      : `${monthName} ${year}`;
 
   const uniquePatients = new Set(
     records.map((r) => String(r.patientId || '').trim()).filter(Boolean)
@@ -37,18 +38,18 @@ export const exportMonthlyReportToPDF = ({
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
 
-  // 1. Hospital Official Name
+  // 1. Hospital Official Name (Centered, Bold)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13.5);
   doc.setTextColor(0, 0, 0);
-  doc.text(hospitalName.toUpperCase(), pageWidth / 2, 12, { align: 'center' });
+  doc.text((hospitalName || 'AD-DIN AKIJ MEDICAL COLLEGE HOSPITAL').toUpperCase(), pageWidth / 2, 12, { align: 'center' });
 
-  // 2. "One Call" Header
+  // 2. "One Call" Subtitle (Centered)
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   doc.text('One Call', pageWidth / 2, 17.5, { align: 'center' });
 
-  // 3. Month & Year
+  // 3. Month & Year Banner (Centered, Bold)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10.5);
   doc.text(monthYearString, pageWidth / 2, 23, { align: 'center' });
@@ -79,7 +80,7 @@ export const exportMonthlyReportToPDF = ({
     return [slVal, idVal, nameVal, dateVal, timeVal, remarkVal];
   });
 
-  // 6. Render AutoTable (Compact high-density: fits 40-50 rows per page)
+  // 6. Render AutoTable
   autoTable(doc, {
     startY: 34.5,
     head: [['SL', 'Patient ID', 'Patient Name', 'Date', 'Time', 'Remark (Tk)']],
@@ -133,7 +134,7 @@ export const exportMonthlyReportToPDF = ({
     margin: { top: 34.5, left: 12, right: 12, bottom: 28 },
   });
 
-  // 7. Signature Blocks (Anchored directly at the very bottom of the document)
+  // 7. Signature Blocks (Anchored directly at the very bottom of the last page)
   const pageCount = doc.internal.getNumberOfPages();
   doc.setPage(pageCount);
 
@@ -164,7 +165,64 @@ export const exportMonthlyReportToPDF = ({
   doc.setFontSize(7.5);
   doc.text('Incharge', pageWidth - 43, sigY + 7.5, { align: 'center' });
 
-  // 8. Save and Download PDF
+  return doc;
+};
+
+/**
+ * Generate and download a formatted PDF report
+ */
+export const exportMonthlyReportToPDF = ({
+  records = [],
+  month,
+  year,
+  hospitalName = 'AD-DIN AKIJ MEDICAL COLLEGE HOSPITAL',
+}) => {
+  const doc = createMonthlyReportPDFDoc({ records, month, year, hospitalName });
+  const monthObj = MONTHS.find((m) => m.value === Number(month));
+  const monthName = monthObj ? monthObj.name : 'All_Months';
   const fileName = `OverDuty_Report_${monthName}_${year}.pdf`;
   doc.save(fileName);
+};
+
+/**
+ * Directly print the clean vector PDF without browser URL, timestamp, or title headers
+ */
+export const printMonthlyReportPDF = ({
+  records = [],
+  month,
+  year,
+  hospitalName = 'AD-DIN AKIJ MEDICAL COLLEGE HOSPITAL',
+}) => {
+  const doc = createMonthlyReportPDFDoc({ records, month, year, hospitalName });
+  doc.autoPrint({ variant: 'non-conform' });
+  const blob = doc.output('blob');
+  const blobUrl = URL.createObjectURL(blob);
+
+  // Remove existing print iframe if any
+  const existingFrame = document.getElementById('pdf-print-iframe');
+  if (existingFrame) {
+    existingFrame.remove();
+  }
+
+  const iframe = document.createElement('iframe');
+  iframe.id = 'pdf-print-iframe';
+  iframe.style.position = 'fixed';
+  iframe.style.top = '-9999px';
+  iframe.style.left = '-9999px';
+  iframe.style.width = '1px';
+  iframe.style.height = '1px';
+  iframe.style.border = 'none';
+  iframe.src = blobUrl;
+  document.body.appendChild(iframe);
+
+  iframe.onload = () => {
+    setTimeout(() => {
+      try {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      } catch (err) {
+        window.open(blobUrl, '_blank');
+      }
+    }, 250);
+  };
 };

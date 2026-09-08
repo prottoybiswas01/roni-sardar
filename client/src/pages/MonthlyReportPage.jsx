@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { authApi } from '../services/authApi';
 import { useToast } from '../context/ToastContext';
 import { exportMonthlyReportToExcel } from '../services/excelService';
-import { exportMonthlyReportToPDF } from '../services/pdfService';
+import { exportMonthlyReportToPDF, printMonthlyReportPDF } from '../services/pdfService';
 import { ReportHeader } from '../components/reports/ReportHeader';
 import { MonthYearPicker } from '../components/layout/MonthYearPicker';
 import { formatDateDotShort, formatHospitalTime } from '../utils/dateUtils';
@@ -117,8 +117,22 @@ export const MonthlyReportPage = ({ onAddNew }) => {
   };
 
   const handlePrint = () => {
-    window.print();
+    if (!records || records.length === 0) {
+      toast.warning('There are no records to print for this period.');
+      return;
+    }
+    printMonthlyReportPDF({
+      records,
+      month: selectedMonth,
+      year: selectedYear,
+      hospitalName: settings.hospitalName,
+    });
   };
+
+  const totalAmount = records.reduce((sum, r) => {
+    const val = parseFloat(String(r.remark || '0').replace(/[^0-9.-]+/g, '')) || 0;
+    return sum + val;
+  }, 0);
 
   return (
     <div className="space-y-6">
@@ -193,6 +207,7 @@ export const MonthlyReportPage = ({ onAddNew }) => {
             disabled={records.length === 0}
             onClick={handlePrint}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-md transition-all active:scale-95 disabled:opacity-40"
+            title="Print official hospital statement (Clean A4 without browser headers)"
           >
             <Printer className="w-4 h-4 text-slate-300" />
             Print
@@ -206,10 +221,9 @@ export const MonthlyReportPage = ({ onAddNew }) => {
         <ReportHeader
           hospitalName={settings.hospitalName}
           location={settings.location}
-          reportTitle={settings.reportTitle}
           month={selectedMonth}
           year={selectedYear}
-          recordCount={records.length}
+          records={records}
         />
 
         {/* Report Records Table */}
@@ -227,7 +241,7 @@ export const MonthlyReportPage = ({ onAddNew }) => {
             />
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-slate-200/80 shadow-subtle overflow-hidden print-card">
+          <div className="bg-white rounded-xl border border-slate-200/80 shadow-subtle overflow-hidden print-card space-y-6">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse font-sans">
                 <thead>
@@ -236,10 +250,10 @@ export const MonthlyReportPage = ({ onAddNew }) => {
                       SL
                     </th>
                     <th scope="col" className="py-3 px-4 w-32 border-b border-slate-800 print:border-black">
-                      ID
+                      Patient ID
                     </th>
                     <th scope="col" className="py-3 px-4 min-w-[200px] border-b border-slate-800 print:border-black">
-                      Patient
+                      Patient Name
                     </th>
                     <th scope="col" className="py-3 px-4 w-32 border-b border-slate-800 print:border-black">
                       Date
@@ -247,8 +261,8 @@ export const MonthlyReportPage = ({ onAddNew }) => {
                     <th scope="col" className="py-3 px-4 w-28 border-b border-slate-800 print:border-black">
                       TIME
                     </th>
-                    <th scope="col" className="py-3 px-4 min-w-[220px] border-b border-slate-800 print:border-black">
-                      Remark
+                    <th scope="col" className="py-3 px-4 min-w-[160px] text-right border-b border-slate-800 print:border-black">
+                      Remark (Tk)
                     </th>
                   </tr>
                 </thead>
@@ -261,39 +275,66 @@ export const MonthlyReportPage = ({ onAddNew }) => {
                         className="hover:bg-slate-50/60 print:hover:bg-transparent"
                       >
                         {/* SL */}
-                        <td className="py-2.5 px-4 text-center font-medium text-slate-500 print:text-black">
+                        <td className="py-2 px-4 text-center font-medium text-slate-500 print:text-black">
                           {formatSL(slNum)}
                         </td>
 
-                        {/* ID - Strictly Text string preserving leading zeroes */}
-                        <td className="py-2.5 px-4 font-mono font-bold text-slate-900 print:text-black">
+                        {/* ID */}
+                        <td className="py-2 px-4 font-mono font-bold text-slate-900 print:text-black">
                           {String(rec.patientId || '')}
                         </td>
 
                         {/* Patient Name */}
-                        <td className="py-2.5 px-4 font-semibold text-slate-800 uppercase print:text-black">
+                        <td className="py-2 px-4 font-semibold text-slate-800 uppercase print:text-black">
                           {rec.patientName}
                         </td>
 
                         {/* Date */}
-                        <td className="py-2.5 px-4 text-slate-700 font-medium print:text-black">
+                        <td className="py-2 px-4 text-slate-700 font-medium print:text-black">
                           {formatDateDotShort(rec.date)}
                         </td>
 
                         {/* Time */}
-                        <td className="py-2.5 px-4 text-slate-700 font-mono font-medium print:text-black">
+                        <td className="py-2 px-4 text-slate-700 font-mono font-medium print:text-black">
                           {formatHospitalTime(rec.time)}
                         </td>
 
                         {/* Remark */}
-                        <td className="py-2.5 px-4 font-bold text-slate-800 print:text-black">
+                        <td className="py-2 px-4 font-bold text-right text-slate-800 print:text-black">
                           {rec.remark || '100'}
                         </td>
                       </tr>
                     );
                   })}
                 </tbody>
+                <tfoot>
+                  <tr className="bg-slate-50 font-bold text-xs border-t-2 border-slate-800 print:bg-slate-100 print:border-black">
+                    <td colSpan={5} className="py-3 px-4 uppercase text-slate-900 print:text-black">
+                      TOTAL ENTRIES: {records.length}
+                    </td>
+                    <td className="py-3 px-4 text-right text-slate-900 print:text-black font-mono">
+                      Tk. {totalAmount.toLocaleString()}
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
+            </div>
+
+            {/* Bottom Signature Blocks */}
+            <div className="p-6 pt-12 flex items-center justify-between border-t border-slate-100 print:border-black">
+              {/* Left Signature */}
+              <div className="text-center space-y-1">
+                <div className="w-48 border-t-2 border-slate-800 print:border-black mx-auto"></div>
+                <div className="text-sm font-bold text-slate-900">Roni Sarder</div>
+                <div className="text-xs text-slate-600">Medical Technology</div>
+              </div>
+
+              {/* Right Signature */}
+              <div className="text-center space-y-1">
+                <div className="w-48 border-t-2 border-slate-800 print:border-black mx-auto"></div>
+                <div className="text-sm font-bold text-slate-900">Mizanur Rahman</div>
+                <div className="text-xs text-slate-600">Incharge</div>
+              </div>
             </div>
           </div>
         )}

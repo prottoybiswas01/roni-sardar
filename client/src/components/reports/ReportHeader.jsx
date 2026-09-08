@@ -1,42 +1,52 @@
 import React from 'react';
-import { formatMonthYearHeader } from '../../utils/dateUtils';
-import { Building2, MapPin, Calendar } from 'lucide-react';
+import { MONTHS } from '../../utils/dateUtils';
+import { Building2 } from 'lucide-react';
 
 export const ReportHeader = ({
   hospitalName = 'Ad-din Akij Medical College Hospital',
   location = 'Boyra, Khulna',
-  reportTitle = 'OVER DUTY / PATIENT REPORT',
   month,
   year,
-  recordCount = 0,
+  records = [],
 }) => {
+  const monthObj = MONTHS.find((m) => m.value === Number(month));
+  const monthName = monthObj ? monthObj.name.toUpperCase() : 'ALL';
+  const monthYearString =
+    month === 'all' || !month
+      ? `YEAR: ${year}`
+      : `MONTH: ${monthName} ${year}`;
+
+  const uniquePatients = new Set(
+    records.map((r) => String(r.patientId || '').trim()).filter(Boolean)
+  ).size;
+
+  const totalAmount = records.reduce((sum, r) => {
+    const val = parseFloat(String(r.remark || '0').replace(/[^0-9.-]+/g, '')) || 0;
+    return sum + val;
+  }, 0);
+
   return (
-    <div className="bg-white p-6 sm:p-8 rounded-xl border border-slate-200/80 shadow-subtle text-center space-y-2.5 print-card">
-      {/* Hospital Name */}
-      <div className="flex items-center justify-center gap-2">
-        <Building2 className="w-5 h-5 text-brand-600 print:hidden" />
-        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-          {hospitalName}
-        </h2>
+    <div className="bg-white p-5 sm:p-6 rounded-xl border border-slate-200/80 shadow-subtle text-center space-y-1.5 print-card">
+      {/* 1. Hospital Name */}
+      <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight uppercase">
+        {(hospitalName || 'AD-DIN AKIJ MEDICAL COLLEGE HOSPITAL').toUpperCase()}
+      </h2>
+
+      {/* 2. One Call Subtitle */}
+      <div className="text-sm font-medium text-slate-700">
+        One Call
       </div>
 
-      {/* Location */}
-      <div className="flex items-center justify-center gap-1.5 text-xs sm:text-sm text-slate-600 font-medium">
-        <MapPin className="w-3.5 h-3.5 text-slate-400 print:hidden" />
-        <span>{location}</span>
+      {/* 3. Month & Year Banner */}
+      <div className="text-sm font-bold text-slate-900 tracking-wide">
+        {monthYearString}
       </div>
 
-      {/* Month & Year Banner */}
-      <div className="pt-2">
-        <div className="inline-block border-b-2 border-slate-800 text-slate-900 font-bold text-sm sm:text-base tracking-wide px-6 py-1">
-          {formatMonthYearHeader(month, year)}
+      {/* 4. Divider & Summary Line */}
+      <div className="pt-2 border-t border-slate-300 print:border-black">
+        <div className="text-xs font-bold text-slate-800">
+          Total Records: {records.length} &nbsp;|&nbsp; Unique Patients: {uniquePatients} &nbsp;|&nbsp; Total Remark / Amount: Tk. {totalAmount.toLocaleString()}
         </div>
-      </div>
-
-      {/* Report metadata in web view */}
-      <div className="flex items-center justify-between pt-2 text-[11px] text-slate-400 no-print">
-        <span>Document: {reportTitle}</span>
-        <span>Total Records in Period: <strong className="text-slate-700">{recordCount}</strong></span>
       </div>
     </div>
   );
