@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { authApi } from '../services/authApi';
 import { recordsApi } from '../services/recordsApi';
+import { backupApi } from '../services/backupApi';
 import { exportMonthlyReportToExcel } from '../services/excelService';
 import { exportMonthlyReportToPDF } from '../services/pdfService';
 import { Modal } from '../components/common/Modal';
@@ -32,14 +33,31 @@ import {
   FileType,
   Activity,
   User as UserIcon,
+  Database,
+  Download,
+  Upload,
+  Mail,
+  KeyRound,
+  RefreshCw,
+  FileJson,
+  Server,
+  Send,
+  HelpCircle,
+  Check,
 } from 'lucide-react';
 
-export const SettingsPage = () => {
+export const SettingsPage = ({ initialTab = 'general' }) => {
   const toast = useToast();
   const { settings, updateSettings, isLoadingSettings, selectedMonth, selectedYear } = useSettings();
   const { isAdmin, isSuperAdmin, user: currentUser } = useAuth();
 
-  const [activeTab, setActiveTab] = useState('general');
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   // General settings state
   const [formData, setFormData] = useState({
@@ -54,6 +72,31 @@ export const SettingsPage = () => {
   const [users, setUsers] = useState([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
+
+  // Password Reset Modal state
+  const [passwordResetUser, setPasswordResetUser] = useState(null);
+  const [newPasswordValue, setNewPasswordValue] = useState('');
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+
+  // Backup & Recovery state
+  const [backupStatus, setBackupStatus] = useState(null);
+  const [isLoadingBackupStatus, setIsLoadingBackupStatus] = useState(false);
+  const [backupFormData, setBackupFormData] = useState({
+    backupEmail: '',
+    autoEmailBackup: true,
+    smtpHost: 'smtp.gmail.com',
+    smtpPort: 465,
+    smtpUser: '',
+    smtpPass: '',
+    smtpSecure: true,
+  });
+  const [isSavingBackupSettings, setIsSavingBackupSettings] = useState(false);
+  const [isSendingBackupEmail, setIsSendingBackupEmail] = useState(false);
+  const [isTestingSmtp, setIsTestingSmtp] = useState(false);
+  const [isExportingFullJson, setIsExportingFullJson] = useState(false);
+  const [restoreFileJson, setRestoreFileJson] = useState(null);
+  const [restoreFileName, setRestoreFileName] = useState('');
+  const [isRestoringDb, setIsRestoringDb] = useState(false);
 
   // Inspect User Profile & Records Modal state
   const [inspectingUser, setInspectingUser] = useState(null);
@@ -192,6 +235,165 @@ export const SettingsPage = () => {
     }
   };
 
+  // Fetch backup status and configuration
+  const fetchBackupStatus = useCallback(async () => {
+    try {
+      setIsLoadingBackupStatus(true);
+      const res = await backupApi.getBackupStatus();
+      if (res.success && res.data) {
+        setBackupStatus(res.data);
+        setBackupFormData({
+          backupEmail: res.data.backupEmail || 'admin@hospital.com',
+          autoEmailBackup: res.data.autoEmailBackup ?? true,
+          smtpHost: res.data.smtpHost || 'smtp.gmail.com',
+          smtpPort: res.data.smtpPort || 465,
+          smtpUser: res.data.smtpUser || '',
+          smtpPass: '',
+          smtpSecure: res.data.smtpSecure ?? true,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load backup status:', err);
+    } finally {
+      setIsLoadingBackupStatus(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAdmin && activeTab === 'backup') {
+      fetchBackupStatus();
+    }
+  }, [isAdmin, activeTab, fetchBackupStatus]);
+
+  const handleSaveBackupSettings = async (e) => {
+    e.preventDefault();
+    try {
+      setIsSavingBackupSettings(true);
+      await updateSettings(backupFormData);
+      toast.success('Automated backup settings saved successfully');
+      fetchBackupStatus();
+    } catch (err) {
+      toast.error('Failed to save backup settings: ' + err.message);
+    } finally {
+      setIsSavingBackupSettings(false);
+    }
+  };
+
+  const handleTriggerBackupEmailNow = async () => {
+    try {
+      setIsSendingBackupEmail(true);
+      const res = await backupApi.triggerEmailBackup();
+      toast.success(res.message || 'Backup successfully dispatched!');
+      fetchBackupStatus();
+    } catch (err) {
+      toast.error('Backup email dispatch failed: ' + err.message);
+    } finally {
+      setIsSendingBackupEmail(false);
+    }
+  };
+
+  const handleTestSmtp = async () => {
+    if (!backupFormData.smtpUser || !backupFormData.smtpPass || !backupFormData.backupEmail) {
+      toast.warning('Please enter SMTP User, App Password, and Recipient Email to test connection');
+      return;
+    }
+    try {
+      setIsTestingSmtp(true);
+      const res = await backupApi.testEmailSettings({
+        host: backupFormData.smtpHost,
+        port: Number(backupFormData.smtpPort),
+        user: backupFormData.smtpUser,
+        pass: backupFormData.smtpPass,
+        secure: backupFormData.smtpSecure,
+        to: backupFormData.backupEmail,
+      });
+      toast.success(res.message);
+    } catch (err) {
+      toast.error('SMTP Test Failed: ' + err.message);
+    } finally {
+      setIsTestingSmtp(false);
+    }
+  };
+
+  const handleDownloadFullBackup = async () => {
+    try {
+      setIsExportingFullJson(true);
+      await backupApi.downloadFullBackup();
+      toast.success('Complete database snapshot downloaded successfully');
+      fetchBackupStatus();
+    } catch (err) {
+      toast.error('Download backup failed: ' + err.message);
+    } finally {
+      setIsExportingFullJson(false);
+    }
+  };
+
+  const handleFileSelectForRestore = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setRestoreFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target.result);
+        if (!parsed.data || !Array.isArray(parsed.data.records)) {
+          toast.error('Invalid backup file structure. File must be an OverDuty Pro backup JSON.');
+          setRestoreFileJson(null);
+          return;
+        }
+        setRestoreFileJson(parsed);
+        toast.info(`Backup file loaded: ${parsed.counts?.totalRecords || parsed.data.records.length} records found.`);
+      } catch (err) {
+        toast.error('Failed to parse JSON backup file: ' + err.message);
+        setRestoreFileJson(null);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleExecuteRestore = async () => {
+    if (!restoreFileJson) return;
+    if (!window.confirm(`Are you sure you want to restore ${restoreFileJson.counts?.totalRecords || restoreFileJson.data.records.length} records into the database? Existing identical records will not be overwritten.`)) {
+      return;
+    }
+
+    try {
+      setIsRestoringDb(true);
+      const res = await backupApi.restoreBackup(restoreFileJson);
+      toast.success(res.message);
+      setRestoreFileJson(null);
+      setRestoreFileName('');
+      fetchBackupStatus();
+      fetchUsers();
+    } catch (err) {
+      toast.error('Restore failed: ' + err.message);
+    } finally {
+      setIsRestoringDb(false);
+    }
+  };
+
+  const handleResetPasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (!passwordResetUser || !newPasswordValue.trim()) return;
+    if (newPasswordValue.trim().length < 6) {
+      toast.warning('Password must be at least 6 characters');
+      return;
+    }
+
+    try {
+      setIsResettingPassword(true);
+      await authApi.updateUser(passwordResetUser._id, { password: newPasswordValue.trim() });
+      toast.success(`Password for "${passwordResetUser.name}" has been reset successfully!`);
+      setPasswordResetUser(null);
+      setNewPasswordValue('');
+    } catch (err) {
+      toast.error('Password reset failed: ' + err.message);
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
   const handleGeneralSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -309,6 +511,21 @@ export const SettingsPage = () => {
                 {pendingCount} Pending
               </span>
             )}
+          </button>
+        )}
+
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('backup')}
+            className={`pb-3 border-b-2 flex items-center gap-2 transition-colors ${
+              activeTab === 'backup'
+                ? 'border-brand-600 text-brand-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Database className="w-4 h-4" />
+            Database Backup & Recovery
           </button>
         )}
       </div>
@@ -553,6 +770,20 @@ export const SettingsPage = () => {
                                 View Profile
                               </button>
 
+                              {/* Reset Password Button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPasswordResetUser(u);
+                                  setNewPasswordValue('');
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold shadow-subtle transition-all active:scale-95"
+                                title="Set a new password for this user"
+                              >
+                                <KeyRound className="w-3.5 h-3.5 text-amber-600" />
+                                Reset Pass
+                              </button>
+
                               {/* One-click Approve & Activate button for Pending Users */}
                               {u.status === 'pending' && (
                                 <button
@@ -606,6 +837,417 @@ export const SettingsPage = () => {
             )}
           </div>
         </div>
+      )}
+
+      {/* Tab 3: Database Backup & Disaster Recovery (Admin / Super Admin Only) */}
+      {isAdmin && activeTab === 'backup' && (
+        <div className="space-y-6">
+          {/* Section 1: Backup Stats & Quick Health Indicator */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-4 bg-white rounded-xl border border-slate-200/80 shadow-subtle flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Records in DB</p>
+                <h4 className="text-2xl font-extrabold text-slate-900 mt-1">{backupStatus?.totalRecords ?? 0}</h4>
+                <p className="text-[10px] text-emerald-600 font-medium">Safe in MongoDB & Local</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
+                <Database className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="p-4 bg-white rounded-xl border border-slate-200/80 shadow-subtle flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">User Accounts</p>
+                <h4 className="text-2xl font-extrabold text-slate-900 mt-1">{backupStatus?.totalUsers ?? 0}</h4>
+                <p className="text-[10px] text-slate-400">Included in full backup</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <Users className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="p-4 bg-white rounded-xl border border-slate-200/80 shadow-subtle flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Local Snapshots</p>
+                <h4 className="text-2xl font-extrabold text-slate-900 mt-1">{backupStatus?.localSnapshots?.length ?? 0}</h4>
+                <p className="text-[10px] text-brand-600 font-medium">Saved on server disk</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
+                <Server className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="p-4 bg-white rounded-xl border border-slate-200/80 shadow-subtle flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Midnight Auto-Backup</p>
+                <h4 className="text-sm font-bold text-emerald-600 mt-1 flex items-center gap-1">
+                  <CheckCircle2 className="w-4 h-4" /> Active (00:00 AM)
+                </h4>
+                <p className="text-[10px] text-slate-400">Daily automated dispatch</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <Clock className="w-5 h-5" />
+              </div>
+            </div>
+          </div>
+
+          {/* Section 2: 1-Click Instant Full Database Export */}
+          <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-brand-950 rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <h3 className="text-lg font-bold flex items-center gap-2">
+                <Download className="w-5 h-5 text-brand-400" />
+                1-Click Full System Database Snapshot (.JSON)
+              </h3>
+              <p className="text-xs text-slate-300 max-w-xl">
+                Download an immediate, portable offline backup of all patient records, registered users, and system configuration. Store this file securely on your computer or cloud drive for 100% disaster recovery.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              disabled={isExportingFullJson}
+              onClick={handleDownloadFullBackup}
+              className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-brand-500 hover:bg-brand-400 text-white text-xs font-bold shadow-lg shadow-brand-500/30 transition-all active:scale-95 whitespace-nowrap disabled:opacity-50"
+            >
+              {isExportingFullJson ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <FileJson className="w-4 h-4" />
+              )}
+              Download Full Backup (.JSON)
+            </button>
+          </div>
+
+          {/* Section 3: Automated Daily Email Backup Configuration */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-subtle p-6 sm:p-8">
+            <div className="border-b border-slate-100 pb-4 mb-6 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Mail className="w-5 h-5 text-brand-600" />
+                  Automated Daily Midnight Email Delivery
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Sends a full daily summary + Excel spreadsheet + JSON backup directly to your email every night at 12:00 AM
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isSendingBackupEmail}
+                  onClick={handleTriggerBackupEmailNow}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-brand-50 text-brand-800 border border-brand-200 hover:bg-brand-100 text-xs font-bold transition-all active:scale-95 disabled:opacity-50"
+                  title="Send today's backup to email right now"
+                >
+                  {isSendingBackupEmail ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Send className="w-3.5 h-3.5 text-brand-600" />
+                  )}
+                  Send Email Backup Now
+                </button>
+              </div>
+            </div>
+
+            {/* Last Backup Status Note */}
+            {backupStatus?.lastBackupAt && (
+              <div className={`p-3.5 rounded-xl border mb-6 text-xs flex items-start gap-2.5 ${
+                backupStatus.lastBackupStatus === 'success'
+                  ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+                  : backupStatus.lastBackupStatus === 'error'
+                  ? 'bg-rose-50/80 border-rose-200 text-rose-900'
+                  : 'bg-slate-50 border-slate-200 text-slate-700'
+              }`}>
+                {backupStatus.lastBackupStatus === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                ) : backupStatus.lastBackupStatus === 'error' ? (
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                ) : (
+                  <Clock className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+                )}
+                <div>
+                  <span className="font-bold">Last Backup Event: </span>
+                  <span>{new Date(backupStatus.lastBackupAt).toLocaleString()} — {backupStatus.lastBackupMessage}</span>
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveBackupSettings} className="space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Backup Recipient Email */}
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                    <Mail className="w-3.5 h-3.5 text-brand-600" />
+                    Recipient Email Address (Where daily backup will be sent) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={backupFormData.backupEmail}
+                    onChange={(e) => setBackupFormData({ ...backupFormData, backupEmail: e.target.value })}
+                    placeholder="e.g. admin@hospital.com or your-name@gmail.com"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus-ring font-medium"
+                    required
+                  />
+                  <p className="text-[11px] text-slate-400">
+                    This email will receive the daily patient logs spreadsheet and JSON database snapshot every night.
+                  </p>
+                </div>
+
+                {/* SMTP Host */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700">SMTP Host / Mail Server</label>
+                  <input
+                    type="text"
+                    value={backupFormData.smtpHost}
+                    onChange={(e) => setBackupFormData({ ...backupFormData, smtpHost: e.target.value })}
+                    placeholder="e.g. smtp.gmail.com"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus-ring font-mono text-xs"
+                    required
+                  />
+                </div>
+
+                {/* SMTP Port */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700">SMTP Port (465 for SSL, 587 for TLS)</label>
+                  <input
+                    type="number"
+                    value={backupFormData.smtpPort}
+                    onChange={(e) => setBackupFormData({ ...backupFormData, smtpPort: Number(e.target.value) })}
+                    placeholder="465"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus-ring font-mono text-xs"
+                    required
+                  />
+                </div>
+
+                {/* Sender Email / SMTP User */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700">SMTP Username / Sender Gmail</label>
+                  <input
+                    type="email"
+                    value={backupFormData.smtpUser}
+                    onChange={(e) => setBackupFormData({ ...backupFormData, smtpUser: e.target.value })}
+                    placeholder="e.g. your-hospital-alerts@gmail.com"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus-ring font-medium"
+                  />
+                  <p className="text-[11px] text-slate-400">The Gmail/Mail account used to send the email.</p>
+                </div>
+
+                {/* Sender App Password */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700">Gmail App Password / SMTP Password</label>
+                  <input
+                    type="password"
+                    value={backupFormData.smtpPass}
+                    onChange={(e) => setBackupFormData({ ...backupFormData, smtpPass: e.target.value })}
+                    placeholder={backupStatus?.hasSmtpPass ? '•••••••••••• (Configured - Enter to update)' : 'Enter 16-character App Password'}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus-ring font-mono"
+                  />
+                  <p className="text-[11px] text-slate-400">
+                    For Gmail, use a 16-character Google "App Password" (from Google Account → Security → 2-Step Verification → App Passwords).
+                  </p>
+                </div>
+              </div>
+
+              {/* Toggles and Buttons */}
+              <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={backupFormData.autoEmailBackup}
+                    onChange={(e) => setBackupFormData({ ...backupFormData, autoEmailBackup: e.target.checked })}
+                    className="w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500"
+                  />
+                  <span className="text-xs font-semibold text-slate-800">
+                    Enable Automatic Daily Midnight Email Backup (00:00 AM)
+                  </span>
+                </label>
+
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    disabled={isTestingSmtp}
+                    onClick={handleTestSmtp}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors disabled:opacity-50"
+                  >
+                    {isTestingSmtp ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    )}
+                    Test SMTP Connection
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={isSavingBackupSettings}
+                    className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold shadow-md shadow-brand-600/30 transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    {isSavingBackupSettings ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Save className="w-3.5 h-3.5" />
+                    )}
+                    Save Backup Settings
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+
+          {/* Section 4: Disaster Recovery / Restore Database from JSON */}
+          <div className="bg-white rounded-2xl border border-rose-200/80 shadow-subtle p-6 sm:p-8">
+            <div className="border-b border-rose-100 pb-4 mb-5">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Upload className="w-5 h-5 text-rose-600" />
+                Disaster Recovery / Restore Database from Backup File
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                If the database ever crashes, is wiped, or account records need to be recovered, upload a previously exported <code>.json</code> backup file to safely restore all patient records and user accounts.
+              </p>
+            </div>
+
+            <div className="space-y-4 max-w-xl">
+              <div className="border-2 border-dashed border-slate-300 hover:border-brand-400 rounded-xl p-6 text-center bg-slate-50/60 transition-colors">
+                <input
+                  type="file"
+                  id="backupFileInput"
+                  accept=".json"
+                  onChange={handleFileSelectForRestore}
+                  className="hidden"
+                />
+                <label
+                  htmlFor="backupFileInput"
+                  className="cursor-pointer flex flex-col items-center justify-center gap-2"
+                >
+                  <FileJson className="w-8 h-8 text-slate-400" />
+                  <span className="text-xs font-bold text-brand-700 hover:text-brand-800">
+                    {restoreFileName ? restoreFileName : 'Click to select Backup JSON file from your computer'}
+                  </span>
+                  <span className="text-[10px] text-slate-400">Accepts hospital-overduty-backup-*.json</span>
+                </label>
+              </div>
+
+              {restoreFileJson && (
+                <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 text-xs space-y-2">
+                  <div className="flex items-center justify-between font-bold text-emerald-900">
+                    <span>✅ Valid Backup File Verified</span>
+                    <span>Date: {restoreFileJson.timestamp ? new Date(restoreFileJson.timestamp).toLocaleDateString() : 'N/A'}</span>
+                  </div>
+                  <p className="text-emerald-800">
+                    Contains <strong>{restoreFileJson.counts?.totalRecords || restoreFileJson.data?.records?.length || 0} patient records</strong> and <strong>{restoreFileJson.counts?.totalUsers || restoreFileJson.data?.users?.length || 0} user accounts</strong>.
+                  </p>
+
+                  <button
+                    type="button"
+                    disabled={isRestoringDb}
+                    onClick={handleExecuteRestore}
+                    className="mt-2 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    {isRestoringDb ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Upload className="w-4 h-4" />
+                    )}
+                    Execute Database Restoration Now
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Section 5: Local Server Disk Snapshots */}
+          {backupStatus?.localSnapshots?.length > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-subtle overflow-hidden">
+              <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <Server className="w-4 h-4 text-slate-600" />
+                    Local Server Disk Snapshots Archive
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Snapshots automatically saved on the server's local file storage
+                  </p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100">
+                    <tr>
+                      <th className="py-2.5 px-4">Filename</th>
+                      <th className="py-2.5 px-4">Created Date</th>
+                      <th className="py-2.5 px-4 text-right">File Size</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-mono text-slate-700">
+                    {backupStatus.localSnapshots.map((snap) => (
+                      <tr key={snap.filename} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-4 font-bold text-brand-700">{snap.filename}</td>
+                        <td className="py-2.5 px-4 font-sans">{new Date(snap.createdAt).toLocaleString()}</td>
+                        <td className="py-2.5 px-4 text-right font-sans">{(snap.sizeBytes / 1024).toFixed(1)} KB</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Password Reset Modal (Admin / Super Admin Only) */}
+      {passwordResetUser && (
+        <Modal
+          isOpen={Boolean(passwordResetUser)}
+          onClose={() => setPasswordResetUser(null)}
+          title={`Reset Password: ${passwordResetUser.name}`}
+          subtitle={`Username: @${passwordResetUser.username || passwordResetUser.email}`}
+          maxWidth="max-w-md"
+        >
+          <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <KeyRound className="w-3.5 h-3.5 text-amber-600" />
+                New Password (Minimum 6 characters) <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={newPasswordValue}
+                onChange={(e) => setNewPasswordValue(e.target.value)}
+                placeholder="e.g. newPass2026!"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus-ring font-mono"
+                required
+                minLength={6}
+              />
+              <p className="text-[11px] text-slate-400">
+                Staff member will be able to log in immediately using this new password.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setPasswordResetUser(null)}
+                className="px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-lg"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="submit"
+                disabled={isResettingPassword || newPasswordValue.trim().length < 6}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md transition-all active:scale-95 disabled:opacity-50"
+              >
+                {isResettingPassword ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <KeyRound className="w-3.5 h-3.5" />
+                )}
+                Save New Password
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
 
       {/* Staff Profile & Records Inspection Modal (Super Admin / Admin Only) */}

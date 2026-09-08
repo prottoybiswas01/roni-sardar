@@ -11,10 +11,12 @@ import fs from 'fs';
 import { connectDB } from './config/db.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { seedInitialAdmin } from './controllers/authController.js';
+import { initDailyBackupScheduler } from './services/backupService.js';
 
 import authRoutes from './routes/authRoutes.js';
 import recordRoutes from './routes/recordRoutes.js';
 import settingsRoutes from './routes/settingsRoutes.js';
+import backupRoutes from './routes/backupRoutes.js';
 
 // Setup dirname in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -29,6 +31,7 @@ const app = express();
 // Connect to MongoDB
 connectDB().then(() => {
   seedInitialAdmin();
+  initDailyBackupScheduler();
 });
 
 // Security HTTP headers
@@ -97,6 +100,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/records', recordRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/backup', backupRoutes);
 
 // Serve static frontend build files in production or when dist exists
 const clientDistPath = path.join(__dirname, '..', 'client', 'dist');

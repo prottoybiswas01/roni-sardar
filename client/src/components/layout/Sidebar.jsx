@@ -7,6 +7,7 @@ import {
   FileText,
   Settings,
   Users,
+  Database,
   Activity,
   ChevronLeft,
   ChevronRight,
@@ -56,6 +57,12 @@ export const Sidebar = ({
             id: 'users',
             label: 'User Management',
             icon: Users,
+          },
+          {
+            id: 'backup',
+            label: 'Backup & Recovery',
+            icon: Database,
+            badge: 'Auto',
           },
         ]
       : []),

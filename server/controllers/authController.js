@@ -172,7 +172,7 @@ export const getUsers = async (req, res, next) => {
 // @access  Private/Admin/SuperAdmin
 export const updateUser = async (req, res, next) => {
   try {
-    const { role, status, name } = req.body;
+    const { role, status, name, password } = req.body;
     const user = await User.findById(req.params.id);
 
     if (!user) {
@@ -195,6 +195,9 @@ export const updateUser = async (req, res, next) => {
     if (role) user.role = role;
     if (status) user.status = status;
     if (name) user.name = name;
+    if (password && password.trim().length >= 6) {
+      user.password = password.trim();
+    }
 
     await user.save();
 

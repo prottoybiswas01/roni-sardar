@@ -95,9 +95,11 @@ const MainApplication = () => {
           <MonthlyReportPage onAddNew={() => setActiveTab('add-record')} />
         )}
 
-        {activeTab === 'settings' && <SettingsPage />}
+        {activeTab === 'settings' && <SettingsPage initialTab="general" />}
 
-        {activeTab === 'users' && <SettingsPage />}
+        {activeTab === 'users' && <SettingsPage initialTab="users" />}
+
+        {activeTab === 'backup' && <SettingsPage initialTab="backup" />}
       </Layout>
 
       {/* Global Camera Scanner Modal */}

@@ -29,6 +29,51 @@ const settingsSchema = new mongoose.Schema(
       type: Number,
       default: () => new Date().getFullYear(),
     },
+    // Automated & Manual Backup Settings
+    backupEmail: {
+      type: String,
+      default: 'admin@hospital.com',
+      trim: true,
+    },
+    autoEmailBackup: {
+      type: Boolean,
+      default: true,
+    },
+    smtpHost: {
+      type: String,
+      default: 'smtp.gmail.com',
+      trim: true,
+    },
+    smtpPort: {
+      type: Number,
+      default: 465,
+    },
+    smtpUser: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    smtpPass: {
+      type: String,
+      default: '',
+    },
+    smtpSecure: {
+      type: Boolean,
+      default: true,
+    },
+    lastBackupAt: {
+      type: Date,
+      default: null,
+    },
+    lastBackupStatus: {
+      type: String,
+      enum: ['idle', 'success', 'error'],
+      default: 'idle',
+    },
+    lastBackupMessage: {
+      type: String,
+      default: '',
+    },
   },
   {
     timestamps: true,
