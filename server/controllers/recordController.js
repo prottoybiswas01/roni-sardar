@@ -6,7 +6,7 @@ const getNextSequenceNumber = async (month, year, userId = null) => {
   if (userId) {
     query.createdBy = userId;
   }
-  const lastRecord = await Record.findOne(query).sort({ sl: -1 });
+  const lastRecord = await Record.findOne(query).select('sl').sort({ sl: -1 }).lean();
   return lastRecord && typeof lastRecord.sl === 'number' ? lastRecord.sl + 1 : 1;
 };
 
@@ -106,7 +106,7 @@ export const getRecords = async (req, res, next) => {
     }
 
     const pageNum = Math.max(1, parseInt(page, 10));
-    const limitNum = Math.min(500, Math.max(1, parseInt(limit, 10)));
+    const limitNum = Math.min(2000, Math.max(1, parseInt(limit, 10)));
     const skip = (pageNum - 1) * limitNum;
 
     const sortOptions = {};
@@ -116,12 +116,15 @@ export const getRecords = async (req, res, next) => {
       sortOptions.sl = 1;
     }
 
+    // High performance query with .lean() directly returning raw JSON objects
     const [records, total] = await Promise.all([
       Record.find(query)
+        .select('sl patientId patientName date time remark month year createdBy createdAt')
         .sort(sortOptions)
         .skip(skip)
         .limit(limitNum)
-        .populate('createdBy', 'name email username'),
+        .populate('createdBy', 'name email username')
+        .lean(),
       Record.countDocuments(query),
     ]);
 
@@ -392,7 +395,9 @@ export const checkDuplicate = async (req, res, next) => {
       query._id = { $ne: excludeId };
     }
 
-    const existing = await Record.findOne(query);
+    const existing = await Record.findOne(query)
+      .select('patientId patientName date')
+      .lean();
 
     if (existing) {
       return res.status(200).json({
@@ -454,8 +459,10 @@ export const getDashboardStats = async (req, res, next) => {
       Record.countDocuments({ ...baseQuery, date: { $gte: todayStart, $lte: todayEnd } }),
       Record.countDocuments({ ...baseQuery, month: currentMonth, year: currentYear }),
       Record.find({ ...baseQuery, month: currentMonth, year: currentYear })
+        .select('sl patientId patientName date time remark')
         .sort({ date: -1, createdAt: -1 })
-        .limit(5),
+        .limit(5)
+        .lean(),
       Record.distinct('patientId', { ...baseQuery, month: currentMonth, year: currentYear }),
     ]);
 
