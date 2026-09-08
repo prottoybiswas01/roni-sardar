@@ -91,11 +91,11 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
     if (currentUser) {
       const emailVal = currentUser.backupEmail || currentUser.email || '';
       setUserBackupEmail(emailVal);
-      if (!isSuperAdmin && currentUser.backupEmail) {
+      if (currentUser.backupEmail) {
         setIsEmailLocked(true);
       }
     }
-  }, [currentUser, isSuperAdmin]);
+  }, [currentUser]);
 
   // Inspect User Profile & Records Modal state
   const [inspectingUser, setInspectingUser] = useState(null);

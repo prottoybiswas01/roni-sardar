@@ -17,6 +17,7 @@ export const LoginPage = () => {
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
+    username: '',
     email: '',
     password: '',
   });
@@ -30,8 +31,8 @@ export const LoginPage = () => {
       return;
     }
 
-    if (isRegisterMode && !formData.name) {
-      toast.error('Please enter your full name');
+    if (isRegisterMode && (!formData.name || !formData.username)) {
+      toast.error('Please enter your full name, username, email, and password');
       return;
     }
 
@@ -40,12 +41,13 @@ export const LoginPage = () => {
       if (isRegisterMode) {
         const res = await register({
           name: formData.name,
+          username: formData.username,
           email: formData.email,
           password: formData.password,
         });
         toast.success(res?.message || 'Registration submitted! Awaiting Super Admin approval.');
         setIsRegisterMode(false);
-        setFormData({ name: '', email: formData.email, password: '' });
+        setFormData({ name: '', username: '', email: formData.email, password: '' });
       } else {
         await login(formData.email, formData.password);
         toast.success('Welcome back! Logged in successfully.');
@@ -98,17 +100,35 @@ export const LoginPage = () => {
               </div>
             )}
 
-            {/* Username / Email Field */}
+            {/* Username Field (Only in Register Mode) */}
+            {isRegisterMode && (
+              <div className="space-y-1.5 animate-in fade-in duration-200">
+                <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-brand-400" />
+                  Username
+                </label>
+                <input
+                  type="text"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  placeholder="e.g. roshni_akter"
+                  className="w-full rounded-xl border border-slate-600 bg-slate-900/60 px-3.5 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all"
+                  required={isRegisterMode}
+                />
+              </div>
+            )}
+
+            {/* Email Field */}
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-brand-400" />
-                Username or Staff Email
+                <Mail className="w-3.5 h-3.5 text-brand-400" />
+                {isRegisterMode ? 'Staff Email Address (For Backup & Verification)' : 'Username or Staff Email'}
               </label>
               <input
-                type="text"
+                type={isRegisterMode ? 'email' : 'text'}
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="Enter username or email"
+                placeholder={isRegisterMode ? 'e.g. staff@gmail.com' : 'Enter username or email'}
                 className="w-full rounded-xl border border-slate-600 bg-slate-900/60 px-3.5 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all"
                 required
               />
@@ -151,7 +171,7 @@ export const LoginPage = () => {
               type="button"
               onClick={() => {
                 setIsRegisterMode(!isRegisterMode);
-                setFormData({ name: '', email: '', password: '' });
+                setFormData({ name: '', username: '', email: '', password: '' });
               }}
               className="text-xs text-brand-400 hover:text-brand-300 font-medium transition-colors"
             >

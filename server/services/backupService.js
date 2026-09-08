@@ -274,27 +274,28 @@ export const sendSmtpEmail = ({ host, port = 465, user, pass, secure = true, fro
   });
 };
 
-// 7. Dispatcher (Chooses Resend API or SMTP based on settings)
+// 7. Dispatcher (Directly uses Resend API with verified domain roni.kodl.uk)
 export const dispatchEmail = async ({ settings, to, subject, html, attachments = [] }) => {
   const currentSettings = settings || (await Settings.findOne().lean()) || {};
-  const provider = currentSettings.emailProvider || (process.env.RESEND_API_KEY ? 'resend' : 'smtp');
+  const resendKey = process.env.RESEND_API_KEY || currentSettings.resendApiKey;
 
   const senderName = currentSettings.senderName || 'OverDuty Hospital Backup';
   const senderEmail = process.env.RESEND_SENDER_EMAIL || currentSettings.senderEmail || 'backup@roni.kodl.uk';
   const fromFormatted = `${senderName} <${senderEmail}>`;
 
-  if (provider === 'resend' || currentSettings.resendApiKey || process.env.RESEND_API_KEY) {
+  // Always prefer Resend API if API Key is available
+  if (resendKey && (currentSettings.emailProvider !== 'smtp' || !currentSettings.smtpUser)) {
     return await sendResendEmail({
-      apiKey: currentSettings.resendApiKey || process.env.RESEND_API_KEY,
+      apiKey: resendKey,
       from: fromFormatted,
       to,
       subject,
       html,
       attachments,
     });
-  } else {
+  } else if (currentSettings.smtpHost && currentSettings.smtpUser && currentSettings.smtpPass) {
     return await sendSmtpEmail({
-      host: currentSettings.smtpHost || 'smtp.gmail.com',
+      host: currentSettings.smtpHost,
       port: currentSettings.smtpPort || 465,
       user: currentSettings.smtpUser,
       pass: currentSettings.smtpPass,
@@ -305,6 +306,17 @@ export const dispatchEmail = async ({ settings, to, subject, html, attachments =
       htmlBody: html,
       attachments,
     });
+  } else if (resendKey) {
+    return await sendResendEmail({
+      apiKey: resendKey,
+      from: fromFormatted,
+      to,
+      subject,
+      html,
+      attachments,
+    });
+  } else {
+    throw new Error('Email sending failed: Resend API Key is missing. Please set RESEND_API_KEY in server environment.');
   }
 };
 

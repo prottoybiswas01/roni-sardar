@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import { dispatchEmail } from '../services/backupService.js';
 
 // Generate JWT token
 const generateToken = (id) => {
@@ -17,7 +18,7 @@ const generateToken = (id) => {
 // @access  Public
 export const register = async (req, res, next) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, username, email, password } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({
@@ -27,31 +28,93 @@ export const register = async (req, res, next) => {
     }
 
     const trimmedEmail = email.trim().toLowerCase();
-    const userExists = await User.findOne({ email: trimmedEmail });
-    if (userExists) {
+    const cleanUsername = username ? username.trim().toLowerCase() : trimmedEmail.split('@')[0];
+
+    const [emailExists, userExists] = await Promise.all([
+      User.findOne({ email: trimmedEmail }),
+      User.findOne({ username: cleanUsername }),
+    ]);
+
+    if (emailExists) {
       return res.status(400).json({
         success: false,
-        message: 'User with this email already exists',
+        message: 'A user with this email address already exists',
       });
     }
 
-    // New user registration starts with 'pending' status
+    if (userExists) {
+      return res.status(400).json({
+        success: false,
+        message: 'This username is already taken. Please choose a different username.',
+      });
+    }
+
+    // New user registration starts with 'pending' status & auto email backup enabled
     const user = await User.create({
       name: name.trim(),
+      username: cleanUsername,
       email: trimmedEmail,
-      username: trimmedEmail.split('@')[0],
+      backupEmail: trimmedEmail,
+      autoEmailBackup: true,
       password,
       role: 'staff',
       status: 'pending',
     });
 
+    // Send Registration Confirmation Email to User via Resend
+    try {
+      const hospitalName = 'Ad-din Akij Medical College Hospital';
+      const regHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="font-family: Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 20px; color: #1e293b;">
+          <div style="max-width: 540px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;">
+            <div style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 20px; color: #ffffff; text-align: center;">
+              <h1 style="margin: 0; font-size: 18px; font-weight: bold;">🏥 ${hospitalName}</h1>
+              <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.9;">OverDuty Pro Clinical Records</p>
+            </div>
+            <div style="padding: 24px;">
+              <h2 style="font-size: 16px; color: #0f172a; margin-top: 0;">স্বাগতম ${user.name}!</h2>
+              <p style="font-size: 13px; line-height: 1.6; color: #475569;">
+                আপনার রেজিস্ট্রেশন সফলভাবে সম্পন্ন হয়েছে। আপনার অ্যাকাউন্টটি বর্তমানে <strong>পেন্ডিং (Pending)</strong> অবস্থায় রয়েছে।
+              </p>
+              <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin: 16px 0; font-size: 13px;">
+                <p style="margin: 4px 0;"><strong>Staff Name:</strong> ${user.name}</p>
+                <p style="margin: 4px 0;"><strong>Username:</strong> ${user.username}</p>
+                <p style="margin: 4px 0;"><strong>Registered Email:</strong> ${user.email}</p>
+                <p style="margin: 4px 0;"><strong>Account Status:</strong> <span style="color: #d97706; font-weight: bold;">⏳ Awaiting Admin Approval</span></p>
+              </div>
+              <p style="font-size: 13px; line-height: 1.6; color: #475569;">
+                সুপার এডমিন আপনার অ্যাকাউন্টটি অনুমোদন (Approve) করার সাথে সাথে আপনি স্বয়ংক্রিয়ভাবে আরেকটি ইমেইল পাবেন এবং সিস্টেমে লগইন করতে পারবেন।
+              </p>
+            </div>
+            <div style="background-color: #f8fafc; padding: 12px; text-align: center; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8;">
+              OverDuty Pro System &copy; ${new Date().getFullYear()} ${hospitalName}
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      dispatchEmail({
+        to: trimmedEmail,
+        subject: `🏥 Registration Received — OverDuty Pro (${user.name})`,
+        html: regHtml,
+      }).catch((e) => console.error('[Auth Email] Failed to send registration email:', e.message));
+    } catch (mailErr) {
+      console.error('[Auth Email Error]:', mailErr.message);
+    }
+
     res.status(201).json({
       success: true,
-      message: 'Account registered successfully! Your account is pending Super Admin approval. Please contact the administrator to activate your account.',
+      message: 'Account registered successfully! A confirmation email has been sent. Your account is pending Super Admin approval.',
       data: {
         _id: user._id,
         name: user.name,
+        username: user.username,
         email: user.email,
+        backupEmail: user.backupEmail,
         role: user.role,
         status: user.status,
       },
@@ -194,6 +257,7 @@ export const updateUser = async (req, res, next) => {
       }
     }
 
+    const wasPending = user.status !== 'active';
     if (role) user.role = role;
     if (status) user.status = status;
     if (name) user.name = name;
@@ -203,12 +267,61 @@ export const updateUser = async (req, res, next) => {
 
     await user.save();
 
+    // If user was newly approved/activated, send beautiful notification email via Resend
+    if (status === 'active' && wasPending) {
+      try {
+        const hospitalName = 'Ad-din Akij Medical College Hospital';
+        const approvedHtml = `
+          <!DOCTYPE html>
+          <html>
+          <head><meta charset="utf-8"></head>
+          <body style="font-family: Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 20px; color: #1e293b;">
+            <div style="max-width: 540px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;">
+              <div style="background: linear-gradient(135deg, #059669 0%, #047857 100%); padding: 20px; color: #ffffff; text-align: center;">
+                <h1 style="margin: 0; font-size: 18px; font-weight: bold;">🏥 ${hospitalName}</h1>
+                <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.9;">Account Approved ✅</p>
+              </div>
+              <div style="padding: 24px;">
+                <h2 style="font-size: 16px; color: #0f172a; margin-top: 0;">অভিনন্দন ${user.name}!</h2>
+                <p style="font-size: 13px; line-height: 1.6; color: #475569;">
+                  আপনার ওভার ডিউটি অ্যাকাউন্টটি সুপার এডমিন কর্তৃক <strong>অনুমোদিত (Approved)</strong> হয়েছে। আপনি এখন আপনার অ্যাকাউন্ট ব্যবহার করে সিস্টেমে প্রবেশ করতে পারবেন।
+                </p>
+                <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 14px; margin: 16px 0; font-size: 13px;">
+                  <p style="margin: 4px 0;"><strong>Staff Name:</strong> ${user.name}</p>
+                  <p style="margin: 4px 0;"><strong>Username:</strong> ${user.username}</p>
+                  <p style="margin: 4px 0;"><strong>Email Address:</strong> ${user.email}</p>
+                  <p style="margin: 4px 0;"><strong>Account Role:</strong> ${user.role.toUpperCase()}</p>
+                  <p style="margin: 4px 0;"><strong>Account Status:</strong> <span style="color: #059669; font-weight: bold;">Active ✅</span></p>
+                </div>
+                <div style="text-align: center; margin: 24px 0 10px;">
+                  <a href="https://roni.kodl.uk" style="display: inline-block; background-color: #0284c7; color: #ffffff; font-weight: bold; font-size: 13px; padding: 12px 24px; border-radius: 8px; text-decoration: none;">সিস্টেমে লগইন করুন (Login Now)</a>
+                </div>
+              </div>
+              <div style="background-color: #f8fafc; padding: 12px; text-align: center; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8;">
+                OverDuty Pro System &copy; ${new Date().getFullYear()} ${hospitalName}
+              </div>
+            </div>
+          </body>
+          </html>
+        `;
+
+        dispatchEmail({
+          to: user.email,
+          subject: `✅ Account Approved — Welcome to OverDuty Pro (${user.name})`,
+          html: approvedHtml,
+        }).catch((e) => console.error('[Auth Approval Email Error]:', e.message));
+      } catch (mailErr) {
+        console.error('[Auth Approval Email Error]:', mailErr.message);
+      }
+    }
+
     res.status(200).json({
       success: true,
       message: 'User updated successfully',
       data: {
         _id: user._id,
         name: user.name,
+        username: user.username,
         email: user.email,
         role: user.role,
         status: user.status,
