@@ -27,7 +27,7 @@ export const MonthlyReportPage = ({ onAddNew }) => {
   const { settings, selectedMonth, selectedYear, setSelectedMonth, setSelectedYear } = useSettings();
 
   const [records, setRecords] = useState([]);
-  const [selectedUserId, setSelectedUserId] = useState('all');
+  const [selectedUserId, setSelectedUserId] = useState('me');
   const [userList, setUserList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
@@ -145,8 +145,8 @@ export const MonthlyReportPage = ({ onAddNew }) => {
                 className="py-1.5 px-2.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 focus-ring"
                 title="Filter report by user account"
               >
+                <option value="me">👤 My Records Only (Private)</option>
                 <option value="all">🌐 All Accounts (Combined Report)</option>
-                <option value="me">👤 My Records Only</option>
                 <optgroup label="Staff Accounts">
                   {userList.map((u) => (
                     <option key={u._id} value={u._id}>

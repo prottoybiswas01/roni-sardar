@@ -1,8 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { authApi } from '../services/authApi';
+import { recordsApi } from '../services/recordsApi';
+import { exportMonthlyReportToExcel } from '../services/excelService';
+import { exportMonthlyReportToPDF } from '../services/pdfService';
+import { Modal } from '../components/common/Modal';
+import { formatDateDotShort, formatHospitalTime } from '../utils/dateUtils';
+import { formatSL } from '../utils/formatters';
 import {
   Settings,
   Building2,
@@ -20,11 +26,17 @@ import {
   Clock,
   Crown,
   AlertCircle,
+  Eye,
+  Calendar,
+  FileSpreadsheet,
+  FileType,
+  Activity,
+  User as UserIcon,
 } from 'lucide-react';
 
 export const SettingsPage = () => {
   const toast = useToast();
-  const { settings, updateSettings, isLoadingSettings } = useSettings();
+  const { settings, updateSettings, isLoadingSettings, selectedMonth, selectedYear } = useSettings();
   const { isAdmin, isSuperAdmin, user: currentUser } = useAuth();
 
   const [activeTab, setActiveTab] = useState('general');
@@ -42,6 +54,16 @@ export const SettingsPage = () => {
   const [users, setUsers] = useState([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
+
+  // Inspect User Profile & Records Modal state
+  const [inspectingUser, setInspectingUser] = useState(null);
+  const [inspectMonth, setInspectMonth] = useState(selectedMonth || new Date().getMonth() + 1);
+  const [inspectYear, setInspectYear] = useState(selectedYear || new Date().getFullYear());
+  const [inspectRecords, setInspectRecords] = useState([]);
+  const [inspectStats, setInspectStats] = useState(null);
+  const [isInspectLoading, setIsInspectLoading] = useState(false);
+  const [isExportingUserExcel, setIsExportingUserExcel] = useState(false);
+  const [isExportingUserPdf, setIsExportingUserPdf] = useState(false);
 
   useEffect(() => {
     if (settings) {
@@ -71,6 +93,102 @@ export const SettingsPage = () => {
       toast.error('Failed to load user list: ' + err.message);
     } finally {
       setIsLoadingUsers(false);
+    }
+  };
+
+  // Fetch inspected user's records & stats
+  const fetchInspectedUserData = useCallback(async (userId, month, year) => {
+    if (!userId) return;
+    try {
+      setIsInspectLoading(true);
+      const [recordsRes, statsRes] = await Promise.all([
+        recordsApi.getRecords({
+          userId,
+          month,
+          year,
+          limit: 200,
+          sortBy: 'sl',
+          sortOrder: 'asc',
+        }),
+        recordsApi.getDashboardStats(month, year, userId),
+      ]);
+
+      if (recordsRes.success) {
+        setInspectRecords(recordsRes.data || []);
+      }
+      if (statsRes.success) {
+        setInspectStats(statsRes.data || null);
+      }
+    } catch (err) {
+      console.error('Failed to load user records:', err);
+      toast.error('Failed to load staff records: ' + err.message);
+    } finally {
+      setIsInspectLoading(false);
+    }
+  }, [toast]);
+
+  const handleOpenUserProfile = (userToInspect) => {
+    setInspectingUser(userToInspect);
+    fetchInspectedUserData(userToInspect._id, inspectMonth, inspectYear);
+  };
+
+  const handleInspectMonthChange = (m) => {
+    const newM = Number(m);
+    setInspectMonth(newM);
+    if (inspectingUser) {
+      fetchInspectedUserData(inspectingUser._id, newM, inspectYear);
+    }
+  };
+
+  const handleInspectYearChange = (y) => {
+    const newY = Number(y);
+    setInspectYear(newY);
+    if (inspectingUser) {
+      fetchInspectedUserData(inspectingUser._id, inspectMonth, newY);
+    }
+  };
+
+  const handleDownloadInspectedUserExcel = () => {
+    if (!inspectRecords || inspectRecords.length === 0) {
+      toast.warning('No records found for this user in selected month');
+      return;
+    }
+    try {
+      setIsExportingUserExcel(true);
+      exportMonthlyReportToExcel({
+        records: inspectRecords,
+        month: inspectMonth,
+        year: inspectYear,
+        hospitalName: `${settings.hospitalName} — ${inspectingUser?.name || 'Staff'}`,
+        location: settings.location,
+      });
+      toast.success(`Excel report exported for ${inspectingUser?.name}`);
+    } catch (err) {
+      toast.error('Export failed: ' + err.message);
+    } finally {
+      setIsExportingUserExcel(false);
+    }
+  };
+
+  const handleDownloadInspectedUserPdf = () => {
+    if (!inspectRecords || inspectRecords.length === 0) {
+      toast.warning('No records found for this user in selected month');
+      return;
+    }
+    try {
+      setIsExportingUserPdf(true);
+      exportMonthlyReportToPDF({
+        records: inspectRecords,
+        month: inspectMonth,
+        year: inspectYear,
+        hospitalName: `${settings.hospitalName} — ${inspectingUser?.name || 'Staff'}`,
+        location: settings.location,
+      });
+      toast.success(`PDF document exported for ${inspectingUser?.name}`);
+    } catch (err) {
+      toast.error('PDF export failed: ' + err.message);
+    } finally {
+      setIsExportingUserPdf(false);
     }
   };
 
@@ -424,6 +542,17 @@ export const SettingsPage = () => {
                           {/* Actions */}
                           <td className="py-3.5 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
+                              {/* View Staff Profile & Records */}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenUserProfile(u)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 text-xs font-semibold shadow-subtle transition-all active:scale-95"
+                                title="View this staff member's profile and over duty patient records"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-sky-600" />
+                                View Profile
+                              </button>
+
                               {/* One-click Approve & Activate button for Pending Users */}
                               {u.status === 'pending' && (
                                 <button
@@ -477,6 +606,147 @@ export const SettingsPage = () => {
             )}
           </div>
         </div>
+      )}
+
+      {/* Staff Profile & Records Inspection Modal (Super Admin / Admin Only) */}
+      {inspectingUser && (
+        <Modal
+          isOpen={Boolean(inspectingUser)}
+          onClose={() => setInspectingUser(null)}
+          title={`Staff Profile & Records: ${inspectingUser.name}`}
+          subtitle={`Username: @${inspectingUser.username || inspectingUser.email} • Role: ${inspectingUser.role?.toUpperCase()} • Status: ${inspectingUser.status?.toUpperCase()}`}
+          maxWidth="max-w-4xl"
+        >
+          <div className="space-y-5">
+            {/* User Profile Overview & Metrics */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                  Total All-Time Records
+                </span>
+                <p className="text-xl font-bold text-slate-900 mt-1">
+                  {inspectStats?.totalAllTime ?? 0}
+                </p>
+                <span className="text-[10px] text-slate-400">Total logs by this staff member</span>
+              </div>
+
+              <div className="p-3.5 bg-brand-50/60 rounded-xl border border-brand-200">
+                <span className="text-[11px] font-semibold text-brand-700 uppercase tracking-wider">
+                  Selected Month Logs
+                </span>
+                <p className="text-xl font-bold text-brand-900 mt-1">
+                  {inspectRecords.length}
+                </p>
+                <span className="text-[10px] text-brand-600">Month {inspectMonth}/{inspectYear} entries</span>
+              </div>
+
+              <div className="p-3.5 bg-purple-50/60 rounded-xl border border-purple-200">
+                <span className="text-[11px] font-semibold text-purple-700 uppercase tracking-wider">
+                  Unique Patients
+                </span>
+                <p className="text-xl font-bold text-purple-900 mt-1">
+                  {inspectStats?.uniquePatientsMonth ?? 0}
+                </p>
+                <span className="text-[10px] text-purple-600">Distinct patients treated</span>
+              </div>
+            </div>
+
+            {/* Filter Toolbar for this staff member's records */}
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-50/80 rounded-xl border border-slate-200">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-slate-500" />
+                <span className="text-xs font-semibold text-slate-700">Filter Period:</span>
+                <select
+                  value={inspectMonth}
+                  onChange={(e) => handleInspectMonthChange(e.target.value)}
+                  className="py-1 px-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700"
+                >
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                    <option key={m} value={m}>
+                      Month {m}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={inspectYear}
+                  onChange={(e) => handleInspectYearChange(e.target.value)}
+                  className="py-1 px-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700"
+                >
+                  {[2024, 2025, 2026, 2027, 2028].map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Export buttons for this staff member */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isExportingUserExcel || inspectRecords.length === 0}
+                  onClick={handleDownloadInspectedUserExcel}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 text-xs font-semibold shadow-subtle transition-colors disabled:opacity-40"
+                  title="Export this staff member's monthly Excel report"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                  Excel
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isExportingUserPdf || inspectRecords.length === 0}
+                  onClick={handleDownloadInspectedUserPdf}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-rose-50 hover:text-rose-700 text-xs font-semibold shadow-subtle transition-colors disabled:opacity-40"
+                  title="Export this staff member's monthly PDF report"
+                >
+                  <FileType className="w-3.5 h-3.5 text-rose-600" />
+                  PDF
+                </button>
+              </div>
+            </div>
+
+            {/* Staff Member's Patient Records Table */}
+            {isInspectLoading ? (
+              <div className="py-12 text-center text-slate-400 flex flex-col items-center gap-2">
+                <Loader2 className="w-6 h-6 animate-spin text-brand-500" />
+                <p className="text-xs">Loading {inspectingUser.name}'s records...</p>
+              </div>
+            ) : inspectRecords.length === 0 ? (
+              <div className="py-10 text-center text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                <p className="text-xs font-medium">No patient records found for {inspectingUser.name} in Month {inspectMonth}/{inspectYear}.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto border border-slate-200 rounded-xl max-h-80 overflow-y-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead className="sticky top-0 bg-slate-100 z-10">
+                    <tr className="text-[11px] font-bold uppercase tracking-wider text-slate-600 border-b border-slate-200">
+                      <th className="py-2.5 px-3 w-12 text-center">SL</th>
+                      <th className="py-2.5 px-3 w-28">Patient ID</th>
+                      <th className="py-2.5 px-3">Patient Name</th>
+                      <th className="py-2.5 px-3 w-24">Date</th>
+                      <th className="py-2.5 px-3 w-20">Time</th>
+                      <th className="py-2.5 px-3 w-20">Remark</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {inspectRecords.map((rec, index) => (
+                      <tr key={rec._id || index} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-2 px-3 text-center text-slate-400 font-semibold">{formatSL(rec.sl || index + 1)}</td>
+                        <td className="py-2 px-3 font-mono font-bold text-brand-700">{rec.patientId}</td>
+                        <td className="py-2 px-3 font-medium text-slate-900">{rec.patientName}</td>
+                        <td className="py-2 px-3 text-slate-600">{formatDateDotShort(rec.date)}</td>
+                        <td className="py-2 px-3 text-slate-600 font-mono">{formatHospitalTime(rec.time)}</td>
+                        <td className="py-2 px-3 text-slate-700 font-bold">{rec.remark || '100'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </Modal>
       )}
     </div>
   );

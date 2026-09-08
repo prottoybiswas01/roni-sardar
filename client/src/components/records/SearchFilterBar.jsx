@@ -32,7 +32,7 @@ export const SearchFilterBar = ({
   }, [searchTerm]);
 
   const hasActiveFilters = Boolean(
-    localSearch || filterDate || (isSuperAdmin && selectedUserId !== 'all')
+    localSearch || filterDate || (isSuperAdmin && selectedUserId !== 'me')
   );
 
   return (
@@ -72,8 +72,8 @@ export const SearchFilterBar = ({
               className="py-1.5 px-2.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 focus-ring"
               title="Filter records by user account"
             >
-              <option value="all">🌐 All Users' Records</option>
-              <option value="me">👤 My Records Only</option>
+              <option value="me">👤 My Records Only (Private)</option>
+              <option value="all">🌐 All Users' Records (Combined)</option>
               <optgroup label="Staff Accounts">
                 {users.map((u) => (
                   <option key={u._id} value={u._id}>

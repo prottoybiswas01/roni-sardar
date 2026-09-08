@@ -22,7 +22,7 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 1 });
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDate, setFilterDate] = useState('');
-  const [selectedUserId, setSelectedUserId] = useState('all');
+  const [selectedUserId, setSelectedUserId] = useState('me');
   const [userList, setUserList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -76,7 +76,7 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
   const handleClearFilters = () => {
     setSearchTerm('');
     setFilterDate('');
-    setSelectedUserId('all');
+    setSelectedUserId('me');
   };
 
   const handleDeleteConfirm = async () => {

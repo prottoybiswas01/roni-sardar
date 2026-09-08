@@ -64,13 +64,19 @@ export const getRecords = async (req, res, next) => {
 
     const query = {};
 
-    // User data isolation: Each user only sees their own records.
-    // Super Administrator can optionally inspect all or filter by specific user.
-    if (req.user && req.user.role === 'superadmin') {
-      if (userId && userId !== 'all') {
+    // Strict user data isolation:
+    // By default, EVERY user (including Super Admin) ONLY sees their own records.
+    // Super Administrator / Admin can explicitly inspect a specific staff member's records or all records.
+    if (req.user && (req.user.role === 'superadmin' || req.user.role === 'admin') && userId) {
+      if (userId === 'all') {
+        // Explicitly viewing all combined records
+      } else if (userId !== 'me') {
         query.createdBy = userId;
+      } else {
+        query.createdBy = req.user._id;
       }
     } else {
+      // Default: Strictly only own account records
       query.createdBy = req.user ? req.user._id : null;
     }
 
@@ -421,13 +427,19 @@ export const getDashboardStats = async (req, res, next) => {
     const todayStart = new Date(now.setHours(0, 0, 0, 0));
     const todayEnd = new Date(now.setHours(23, 59, 59, 999));
 
-    // Base query scoping to user
+    // Base query scoping to user:
+    // By default, EVERY user (including Super Admin) ONLY sees their own dashboard statistics.
     const baseQuery = {};
-    if (req.user && req.user.role === 'superadmin') {
-      if (userId && userId !== 'all') {
+    if (req.user && (req.user.role === 'superadmin' || req.user.role === 'admin') && userId) {
+      if (userId === 'all') {
+        // Combined statistics
+      } else if (userId !== 'me') {
         baseQuery.createdBy = userId;
+      } else {
+        baseQuery.createdBy = req.user._id;
       }
     } else {
+      // Default: strictly own records
       baseQuery.createdBy = req.user ? req.user._id : null;
     }
 
