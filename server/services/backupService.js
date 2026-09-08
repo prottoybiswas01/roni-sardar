@@ -109,6 +109,7 @@ export const sendResendEmail = async ({ apiKey, from, to, subject, html, attachm
   const payload = {
     from: from || 'OverDuty Hospital Backup <backup@roni.kodl.uk>',
     to: Array.isArray(to) ? to : [to],
+    replyTo: 'backup@roni.kodl.uk',
     subject,
     html,
   };
