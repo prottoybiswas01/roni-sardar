@@ -6,6 +6,8 @@ import {
   login,
   verifyAdminLoginOtp,
   resendAdminLoginOtp,
+  forgotPassword,
+  verifyResetPassword,
   getMe,
   getUsers,
   updateUser,
@@ -25,6 +27,9 @@ router.post('/resend-email-otp', resendEmailOtp);
 router.post('/login', login);
 router.post('/verify-admin-otp', verifyAdminLoginOtp);
 router.post('/resend-admin-otp', resendAdminLoginOtp);
+router.post('/forgot-password', forgotPassword);
+router.post('/verify-reset-password', verifyResetPassword);
+router.post('/resend-forgot-password-otp', forgotPassword);
 
 // Private User Routes
 router.get('/me', protect, getMe);

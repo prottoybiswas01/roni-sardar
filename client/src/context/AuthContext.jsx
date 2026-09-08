@@ -95,8 +95,20 @@ export const AuthProvider = ({ children }) => {
     throw new Error(res.message || 'Super Admin OTP verification failed');
   };
 
-  const resendAdminOtp = async () => {
-    return await authApi.resendAdminOtp();
+  const resendAdminOtp = async (email) => {
+    return await authApi.resendAdminOtp(email);
+  };
+
+  const forgotPassword = async (email) => {
+    return await authApi.forgotPassword(email);
+  };
+
+  const verifyResetPassword = async (email, otp, newPassword) => {
+    return await authApi.verifyResetPassword({ email, otp, newPassword });
+  };
+
+  const resendForgotPasswordOtp = async (email) => {
+    return await authApi.resendForgotPasswordOtp(email);
   };
 
   const refreshUser = async () => {
@@ -138,6 +150,9 @@ export const AuthProvider = ({ children }) => {
     resendEmailOtp,
     verifyAdminOtp,
     resendAdminOtp,
+    forgotPassword,
+    verifyResetPassword,
+    resendForgotPasswordOtp,
     logout,
     refreshUser,
   };

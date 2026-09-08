@@ -402,7 +402,7 @@ export const login = async (req, res, next) => {
     }
 
     // =========================================================================
-    // SUPER ADMIN 2FA LOGIN PROTECTION (Emails OTP to prottoybiswas575358@gmail.com)
+    // SUPER ADMIN 2FA LOGIN PROTECTION (Emails OTP to Admin's email immediately)
     // =========================================================================
     const isSuperAdminUser =
       user.role === 'superadmin' ||
@@ -416,7 +416,8 @@ export const login = async (req, res, next) => {
       user.loginOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
       await user.save();
 
-      const targetAdminEmail = PRIMARY_SUPERADMIN_EMAIL;
+      const targetEmails = [...new Set([user.email, user.backupEmail, PRIMARY_SUPERADMIN_EMAIL].filter(Boolean))];
+      const targetAdminEmail = targetEmails[0] || PRIMARY_SUPERADMIN_EMAIL;
       const otpEmailHtml = `
         <!DOCTYPE html>
         <html>
@@ -441,7 +442,7 @@ export const login = async (req, res, next) => {
                 ⏱️ এই সিকিউরিটি কোডের মেয়াদ <strong>১০ মিনিট</strong>। আপনি নিজে এই লগইন অনুরোধ না করে থাকলে অবিলম্বে পাসওয়ার্ড পরিবর্তন করুন।
               </p>
               <div style="margin-top: 20px; padding-top: 14px; border-top: 1px solid #334155; font-size: 11px; color: #64748b; text-align: center;">
-                This is an automated administrative security alert for <strong>${targetAdminEmail}</strong>.
+                This is an automated administrative security alert for <strong>${targetEmails.join(', ')}</strong>.
               </div>
             </div>
           </div>
@@ -449,15 +450,17 @@ export const login = async (req, res, next) => {
         </html>
       `;
 
-      try {
-        await dispatchEmail({
-          to: targetAdminEmail,
-          subject: `🛡️ Super Admin Login Security OTP: ${otp} - OverDuty Pro`,
-          html: otpEmailHtml,
-        });
-        console.log(`[Auth] Super Admin login OTP sent to ${targetAdminEmail}`);
-      } catch (emailErr) {
-        console.error('[Auth] Failed to dispatch Super Admin login OTP email:', emailErr.message);
+      for (const emailAddr of targetEmails) {
+        try {
+          await dispatchEmail({
+            to: emailAddr,
+            subject: `🛡️ Super Admin Login Security OTP: ${otp} - OverDuty Pro`,
+            html: otpEmailHtml,
+          });
+          console.log(`[Auth] Super Admin login OTP sent to ${emailAddr}`);
+        } catch (emailErr) {
+          console.error(`[Auth] Failed to dispatch Super Admin login OTP email to ${emailAddr}:`, emailErr.message);
+        }
       }
 
       return res.status(200).json({
@@ -591,8 +594,12 @@ export const verifyAdminLoginOtp = async (req, res, next) => {
 // @access  Public
 export const resendAdminLoginOtp = async (req, res, next) => {
   try {
+    const { email, username } = req.body || {};
+    const identifier = (email || username || '').trim().toLowerCase();
+
     const user = await User.findOne({
       $or: [
+        ...(identifier ? [{ email: identifier }, { username: identifier }] : []),
         { email: PRIMARY_SUPERADMIN_EMAIL },
         { role: 'superadmin' },
         { username: 'admin' },
@@ -611,7 +618,8 @@ export const resendAdminLoginOtp = async (req, res, next) => {
     user.loginOtpExpires = new Date(Date.now() + 10 * 60 * 1000);
     await user.save();
 
-    const targetAdminEmail = PRIMARY_SUPERADMIN_EMAIL;
+    const targetEmails = [...new Set([user.email, user.backupEmail, PRIMARY_SUPERADMIN_EMAIL].filter(Boolean))];
+    const targetAdminEmail = targetEmails[0] || PRIMARY_SUPERADMIN_EMAIL;
     const otpEmailHtml = `
       <!DOCTYPE html>
       <html>
@@ -641,20 +649,191 @@ export const resendAdminLoginOtp = async (req, res, next) => {
       </html>
     `;
 
-    try {
-      await dispatchEmail({
-        to: targetAdminEmail,
-        subject: `🛡️ Resent Super Admin Login Security OTP: ${otp} - OverDuty Pro`,
-        html: otpEmailHtml,
-      });
-    } catch (emailErr) {
-      console.error('[Auth] Failed to dispatch resend admin OTP email:', emailErr.message);
+    for (const emailAddr of targetEmails) {
+      try {
+        await dispatchEmail({
+          to: emailAddr,
+          subject: `🛡️ Resent Super Admin Login Security OTP: ${otp} - OverDuty Pro`,
+          html: otpEmailHtml,
+        });
+      } catch (emailErr) {
+        console.error(`[Auth] Failed to dispatch resend admin OTP email to ${emailAddr}:`, emailErr.message);
+      }
     }
 
     res.status(200).json({
       success: true,
       maskedEmail: maskEmail(targetAdminEmail),
-      message: `নতুন সিকিউরিটি কোডটি ${targetAdminEmail} ঠিকানায় পাঠানো হয়েছে।`,
+      message: `নতুন সিকিউরিটি কোডটি আপনার ইমেইলে (${maskEmail(targetAdminEmail)}) পাঠানো হয়েছে।`,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Initiate Forgot Password & Send 6-Digit OTP to User's Email
+// @route   POST /api/auth/forgot-password
+// @access  Public
+export const forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email || !email.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'অনুগ্রহ করে আপনার নিবন্ধিত ইমেইল বা ইউজারনেম লিখুন (Email/Username required)',
+      });
+    }
+
+    const identifier = email.trim().toLowerCase();
+    const user = await User.findOne({
+      $or: [
+        { email: identifier },
+        { username: identifier },
+        ...(identifier === 'admin' ? [{ email: PRIMARY_SUPERADMIN_EMAIL }, { email: 'admin@hospital.com' }] : []),
+      ],
+    }).select('+resetPasswordOtp +resetPasswordExpires');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'এই ইমেইল বা ইউজারনেমে কোনো অ্যাকাউন্ট খুঁজে পাওয়া যায়নি।',
+      });
+    }
+
+    const otp = generateOtp();
+    user.resetPasswordOtp = otp;
+    user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+    await user.save();
+
+    const targetEmails = [...new Set([user.email, user.backupEmail].filter(Boolean))];
+    const hospitalName = 'Ad-din Akij Medical College Hospital';
+    const resetEmailHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"></head>
+      <body style="font-family: Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 20px; color: #1e293b;">
+        <div style="max-width: 520px; margin: 0 auto; background: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;">
+          <div style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 22px; color: #ffffff; text-align: center;">
+            <h1 style="margin: 0; font-size: 19px; font-weight: bold;">🏥 ${hospitalName}</h1>
+            <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.95;">পাসওয়ার্ড রিসেট সিকিউরিটি কোড (Password Reset OTP)</p>
+          </div>
+          <div style="padding: 24px;">
+            <h2 style="font-size: 16px; color: #0f172a; margin-top: 0;">হ্যালো ${user.name},</h2>
+            <p style="font-size: 13.5px; line-height: 1.6; color: #475569;">
+              আপনার ওভার ডিউটি অ্যাকাউন্টের পাসওয়ার্ড রিসেট করার জন্য একটি অনুরোধ পাওয়া গেছে। নতুন পাসওয়ার্ড সেট করতে নিচের <strong>৬-সংখ্যার সিকিউরিটি কোড (OTP)</strong> ব্যবহার করুন:
+            </p>
+            
+            <!-- OTP Box -->
+            <div style="background-color: #f0fdf4; border: 2px dashed #16a34a; border-radius: 12px; padding: 18px; margin: 20px 0; text-align: center;">
+              <span style="font-size: 11px; font-weight: bold; color: #15803d; text-transform: uppercase; letter-spacing: 1px;">পাসওয়ার্ড রিসেট ওটিপি কোড</span>
+              <div style="font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #16a34a; margin-top: 6px; font-family: monospace;">
+                ${otp}
+              </div>
+              <p style="font-size: 11px; color: #64748b; margin: 6px 0 0 0;">⏱️ এই কোডটি আগামী ১৫ মিনিট পর্যন্ত কার্যকর থাকবে।</p>
+            </div>
+
+            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; font-size: 12.5px; color: #475569; margin-bottom: 16px;">
+              <p style="margin: 2px 0;"><strong>Account Name:</strong> ${user.name}</p>
+              <p style="margin: 2px 0;"><strong>Username:</strong> @${user.username || 'staff'}</p>
+              <p style="margin: 2px 0;"><strong>Registered Email:</strong> ${user.email}</p>
+            </div>
+
+            <p style="font-size: 12px; color: #94a3b8; line-height: 1.5; margin: 0;">
+              আপনি যদি এই পাসওয়ার্ড রিসেটের অনুরোধ না করে থাকেন, তবে এই ইমেইলটি এড়িয়ে চলুন এবং আপনার পাসওয়ার্ড কাউকে শেয়ার করবেন না।
+            </p>
+          </div>
+          <div style="background-color: #f8fafc; padding: 12px; text-align: center; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8;">
+            OverDuty Pro System &copy; ${new Date().getFullYear()} ${hospitalName}
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    for (const emailAddr of targetEmails) {
+      try {
+        await dispatchEmail({
+          to: emailAddr,
+          subject: `🔑 [OTP: ${otp}] OverDuty Pro পাসওয়ার্ড রিসেট কোড — ${user.name}`,
+          html: resetEmailHtml,
+        });
+      } catch (mailErr) {
+        console.error(`[Forgot Password Email Error] to ${emailAddr}:`, mailErr.message);
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      email: user.email,
+      maskedEmail: maskEmail(user.email),
+      message: `পাসওয়ার্ড রিসেট কোডটি আপনার ইমেইলে (${maskEmail(user.email)}) পাঠানো হয়েছে।`,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Verify OTP and Set New Password
+// @route   POST /api/auth/verify-reset-password
+// @access  Public
+export const verifyResetPassword = async (req, res, next) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'ইমেইল, ৬-সংখ্যার OTP কোড এবং নতুন পাসওয়ার্ড প্রদান করুন।',
+      });
+    }
+
+    if (newPassword.trim().length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'পাসওয়ার্ডটি কমপক্ষে ৬ অক্ষরের হতে হবে (Minimum 6 characters required)',
+      });
+    }
+
+    const identifier = email.trim().toLowerCase();
+    const user = await User.findOne({
+      $or: [
+        { email: identifier },
+        { username: identifier },
+        ...(identifier === 'admin' ? [{ email: PRIMARY_SUPERADMIN_EMAIL }, { email: 'admin@hospital.com' }] : []),
+      ],
+    }).select('+resetPasswordOtp +resetPasswordExpires +password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'ইউজার অ্যাকাউন্ট খুঁজে পাওয়া যায়নি।',
+      });
+    }
+
+    const cleanOtp = String(otp).trim();
+    if (!user.resetPasswordOtp || user.resetPasswordOtp !== cleanOtp) {
+      return res.status(400).json({
+        success: false,
+        message: 'ভুল ওটিপি সিকিউরিটি কোড (Invalid OTP Code)। অনুগ্রহ করে সঠিক কোডটি লিখুন।',
+      });
+    }
+
+    if (user.resetPasswordExpires && new Date() > new Date(user.resetPasswordExpires)) {
+      return res.status(400).json({
+        success: false,
+        message: 'সিকিউরিটি কোডের মেয়াদ শেষ হয়ে গেছে (OTP Expired)। পুনরায় নতুন কোড পাঠান।',
+      });
+    }
+
+    // Update password & clear OTP fields
+    user.password = newPassword.trim();
+    user.resetPasswordOtp = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: '🎉 আপনার পাসওয়ার্ড সফলভাবে রিসেট ও পরিবর্তন করা হয়েছে! এখন নতুন পাসওয়ার্ড দিয়ে লগইন করুন।',
     });
   } catch (error) {
     next(error);

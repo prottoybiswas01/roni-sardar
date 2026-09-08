@@ -36,9 +36,31 @@ export const authApi = {
     });
   },
 
-  resendAdminOtp: async () => {
+  resendAdminOtp: async (email) => {
     return await apiClient('/auth/resend-admin-otp', {
       method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  forgotPassword: async (email) => {
+    return await apiClient('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  verifyResetPassword: async ({ email, otp, newPassword }) => {
+    return await apiClient('/auth/verify-reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ email, otp, newPassword }),
+    });
+  },
+
+  resendForgotPasswordOtp: async (email) => {
+    return await apiClient('/auth/resend-forgot-password-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
     });
   },
 
