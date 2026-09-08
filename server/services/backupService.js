@@ -657,11 +657,14 @@ export const runMidnightAllUsersBackup = async () => {
     }
   }
 
-  // 3. Find all active users with autoEmailBackup enabled
-  const activeUsers = await User.find({
-    status: { $in: ['active', 'pending'] },
-    autoEmailBackup: { $ne: false },
-  }).lean();
+  // 3. Find target users:
+  // On Monthly Closing (1st of month): 100% ALWAYS delivered to ALL active staff & admins
+  // On regular daily midnight: delivered only if autoEmailBackup is ON
+  const userQuery = isFirstDayOfMonth
+    ? { status: { $in: ['active', 'pending'] } }
+    : { status: { $in: ['active', 'pending'] }, autoEmailBackup: { $ne: false } };
+
+  const activeUsers = await User.find(userQuery).lean();
 
   let sentCount = 0;
   const errors = [];
@@ -673,15 +676,16 @@ export const runMidnightAllUsersBackup = async () => {
     try {
       await sendUserBackupEmail(user._id, userEmail, targetMonth, targetYear, isFirstDayOfMonth);
       sentCount++;
-      console.log(`[Scheduler] Backup delivered to: ${user.name} <${userEmail}> (Month: ${targetMonth}/${targetYear}, Closing: ${isFirstDayOfMonth})`);
+      console.log(`[Scheduler] Backup delivered to: ${user.name} <${userEmail}> (Month: ${targetMonth}/${targetYear}, Monthly Closing: ${isFirstDayOfMonth})`);
     } catch (err) {
       console.error(`[Scheduler] Failed delivering to ${user.email}:`, err.message);
       errors.push({ user: user.email, error: err.message });
     }
   }
 
-  // 4. Send Master DB Snapshot to Super Admin (only if enabled)
-  if (settings && settings.autoEmailBackup !== false && settings.backupEmail) {
+  // 4. Send Master DB Snapshot to Super Admin (100% on monthly closing or if enabled)
+  const shouldSendAdminMaster = isFirstDayOfMonth || (settings && settings.autoEmailBackup !== false);
+  if (settings && shouldSendAdminMaster && settings.backupEmail) {
     try {
       await executeEmailBackup(settings.backupEmail);
       console.log(`[Scheduler] Master database backup delivered to Admin: ${settings.backupEmail}`);
@@ -693,7 +697,7 @@ export const runMidnightAllUsersBackup = async () => {
   if (settings) {
     settings.lastBackupAt = new Date();
     settings.lastBackupStatus = errors.length > 0 ? 'error' : 'success';
-    settings.lastBackupMessage = `Backup finished for Month ${targetMonth}/${targetYear} (${isFirstDayOfMonth ? 'Monthly Closing' : 'Daily'}). Delivered to ${sentCount} users.`;
+    settings.lastBackupMessage = `Backup finished for Month ${targetMonth}/${targetYear} (${isFirstDayOfMonth ? 'Monthly Closing (100% Delivered)' : 'Daily'}). Delivered to ${sentCount} users.`;
     await settings.save();
   }
 
@@ -779,7 +783,7 @@ export const restoreDatabaseFromJson = async (jsonData) => {
   };
 };
 
-// 12. Automated Daily Midnight Scheduler
+// 12. Automated Daily Midnight & Monthly Closing Scheduler
 let schedulerInitialized = false;
 
 export const initDailyBackupScheduler = () => {
@@ -796,15 +800,18 @@ export const initDailyBackupScheduler = () => {
       const now = new Date();
       // Check if it's within the midnight window (between 00:00 and 00:30)
       if (now.getHours() === 0 && now.getMinutes() <= 30) {
+        const isFirstDayOfMonth = now.getDate() === 1;
         const settings = await Settings.findOne();
-        if (settings && settings.autoEmailBackup) {
-          const lastBackup = settings.lastBackupAt ? new Date(settings.lastBackupAt) : null;
+
+        // Run if autoEmailBackup is active OR if tonight is the 1st of month (Mandatory Monthly Closing)
+        if (isFirstDayOfMonth || (settings && settings.autoEmailBackup !== false)) {
+          const lastBackup = settings?.lastBackupAt ? new Date(settings.lastBackupAt) : null;
           const todayDateStr = now.toISOString().split('T')[0];
           const lastDateStr = lastBackup ? lastBackup.toISOString().split('T')[0] : '';
 
           // Only run once per day
           if (todayDateStr !== lastDateStr) {
-            console.log('[Scheduler] Daily midnight backup triggered for all registered users...');
+            console.log(`[Scheduler] Midnight backup triggered (Monthly Closing: ${isFirstDayOfMonth})...`);
             await runMidnightAllUsersBackup();
           }
         }
@@ -814,5 +821,5 @@ export const initDailyBackupScheduler = () => {
     }
   }, CHECK_INTERVAL);
 
-  console.log('[Scheduler] Daily midnight automated backup scheduler initialized.');
+  console.log('[Scheduler] Daily midnight & monthly closing automated backup scheduler initialized.');
 };
