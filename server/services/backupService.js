@@ -5,6 +5,7 @@ import tls from 'tls';
 import net from 'net';
 import { Resend } from 'resend';
 import { generateMonthlyRecordsPDF } from './pdfGenerator.js';
+import { generateMonthlyRecordsExcelBuffer, generateRecordsCSV } from './excelGenerator.js';
 
 import Record from '../models/Record.js';
 import User from '../models/User.js';
@@ -59,22 +60,8 @@ export const generateUserBackupData = async (userId) => {
   };
 };
 
-// 3. Generate CSV representation of records for Excel
-export const generateRecordsCSV = (records = []) => {
-  const headers = ['SL', 'Patient ID', 'Patient Name', 'Date', 'Time', 'Remark (Amount)', 'Month', 'Year'];
-  const rows = records.map((r, idx) => [
-    r.sl || idx + 1,
-    `="${String(r.patientId || '')}"`, // force string format in Excel
-    `"${String(r.patientName || '').replace(/"/g, '""')}"`,
-    r.date ? new Date(r.date).toISOString().split('T')[0] : '',
-    r.time || '',
-    `"${String(r.remark || '').replace(/"/g, '""')}"`,
-    r.month || '',
-    r.year || '',
-  ]);
-
-  return [headers.join(','), ...rows.map((row) => row.join(','))].join('\r\n');
-};
+// 3. Re-export Excel & CSV generators
+export { generateMonthlyRecordsExcelBuffer, generateRecordsCSV };
 
 // 4. Save Local File Snapshot
 export const saveLocalSnapshot = async () => {
@@ -387,9 +374,14 @@ export const sendUserBackupEmail = async (
     ? `${monthNames[Number(targetMonth) - 1] || 'Month ' + targetMonth} ${targetYear || ''}`
     : 'Cumulative All-Time Records';
 
-  // 1. Generate Excel CSV buffer (with UTF-8 BOM)
-  const csvContent = generateRecordsCSV(userRecords);
-  const csvBuffer = Buffer.from('\uFEFF' + csvContent, 'utf-8');
+  // 1. Generate Formatted Excel (.xlsx) buffer with Ad-din headers & One Call banner
+  const excelBuffer = generateMonthlyRecordsExcelBuffer({
+    records: userRecords,
+    hospitalName,
+    location,
+    month: targetMonth,
+    year: targetYear,
+  });
 
   // 2. Generate Professional PDF Statement Buffer
   let pdfBuffer = null;
@@ -417,9 +409,9 @@ export const sendUserBackupEmail = async (
       content: pdfBuffer,
     },
     {
-      filename: `OverDuty_Records_${safeStaffSlug}_${safeMonthSlug}.csv`,
-      contentType: 'text/csv; charset=utf-8',
-      content: csvBuffer,
+      filename: `OverDuty_Records_${safeStaffSlug}_${safeMonthSlug}.xlsx`,
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      content: excelBuffer,
     },
   ].filter((a) => a.content);
 
@@ -491,7 +483,7 @@ export const sendUserBackupEmail = async (
               📄 <strong>1. Official PDF Statement:</strong> <code>OverDuty_Statement_${safeStaffSlug}_${safeMonthSlug}.pdf</code>
             </p>
             <p style="margin: 4px 0; font-size: 12.5px; color: #334155;">
-              📊 <strong>2. Excel Spreadsheet:</strong> <code>OverDuty_Records_${safeStaffSlug}_${safeMonthSlug}.csv</code> (Excel / Sheets compatible)
+              📊 <strong>2. Excel Spreadsheet:</strong> <code>OverDuty_Records_${safeStaffSlug}_${safeMonthSlug}.xlsx</code> (Official Excel Spreadsheet)
             </p>
           </div>
 
@@ -511,7 +503,7 @@ export const sendUserBackupEmail = async (
     </html>
   `;
 
-  const text = `${hospitalName}\n${headerTitle}\n\nHello ${user.name},\n\nReport Period: ${monthLabel}\nTotal Patient Entries: ${totalEntries}\nUnique Patients: ${uniquePatients}\nTotal Amount / Earned: Tk. ${totalAmount.toLocaleString()}\nAverage per Entry: Tk. ${avgAmount.toLocaleString()}\n\nAttached Files:\n1. OverDuty_Statement_${safeStaffSlug}_${safeMonthSlug}.pdf (Official PDF Statement)\n2. OverDuty_Records_${safeStaffSlug}_${safeMonthSlug}.csv (Excel Spreadsheet)\n\nPortal: https://roni.kodl.uk\n© ${new Date().getFullYear()} ${hospitalName}`;
+  const text = `${hospitalName}\n${headerTitle}\n\nHello ${user.name},\n\nReport Period: ${monthLabel}\nTotal Patient Entries: ${totalEntries}\nUnique Patients: ${uniquePatients}\nTotal Amount / Earned: Tk. ${totalAmount.toLocaleString()}\nAverage per Entry: Tk. ${avgAmount.toLocaleString()}\n\nAttached Files:\n1. OverDuty_Statement_${safeStaffSlug}_${safeMonthSlug}.pdf (Official PDF Statement)\n2. OverDuty_Records_${safeStaffSlug}_${safeMonthSlug}.xlsx (Formatted Excel Spreadsheet)\n\nPortal: https://roni.kodl.uk\n© ${new Date().getFullYear()} ${hospitalName}`;
 
   await dispatchEmail({
     settings,
@@ -550,7 +542,13 @@ export const executeEmailBackup = async (customRecipient = null) => {
   const nowDisplay = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   const hospitalName = settings?.hospitalName || 'Ad-din Akij Medical College Hospital';
 
-  const csvContent = generateRecordsCSV(allRecords);
+  const excelBuffer = generateMonthlyRecordsExcelBuffer({
+    records: allRecords,
+    hospitalName,
+    location: 'All Departments / Wards',
+    month: 'all',
+    year: new Date().getFullYear(),
+  });
   const jsonContent = JSON.stringify(fullBackup, null, 2);
 
   const html = `
@@ -590,7 +588,7 @@ export const executeEmailBackup = async (customRecipient = null) => {
           <p style="font-size: 13px; color: #64748b; margin-bottom: 24px;">
             📎 <strong>Attachments:</strong><br>
             1. <code>full-database-backup-${dateStr}.json</code> (Disaster Recovery file)<br>
-            2. <code>all-hospital-records-${dateStr}.csv</code> (Excel Spreadsheet)
+            2. <code>all-hospital-records-${dateStr}.xlsx</code> (Formatted Excel Spreadsheet)
           </p>
         </div>
 
@@ -609,9 +607,9 @@ export const executeEmailBackup = async (customRecipient = null) => {
       content: Buffer.from(jsonContent, 'utf-8'),
     },
     {
-      filename: `all-hospital-records-${dateStr}.csv`,
-      contentType: 'text/csv; charset=utf-8',
-      content: Buffer.from('\uFEFF' + csvContent, 'utf-8'),
+      filename: `all-hospital-records-${dateStr}.xlsx`,
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      content: excelBuffer,
     },
   ];
 
