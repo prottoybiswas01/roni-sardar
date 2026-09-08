@@ -93,7 +93,7 @@ export const saveLocalSnapshot = async () => {
 export const sendResendEmail = async ({ apiKey, from, to, subject, html, attachments = [] }) => {
   const resendApiKey = apiKey || process.env.RESEND_API_KEY;
   if (!resendApiKey) {
-    throw new Error('Resend API Key is missing. Please provide it in Backup Settings or .env file (RESEND_API_KEY).');
+    throw new Error('Resend API Key is missing. Please configure it in .env (RESEND_API_KEY).');
   }
 
   const payload = {
@@ -280,7 +280,7 @@ export const dispatchEmail = async ({ settings, to, subject, html, attachments =
   const provider = currentSettings.emailProvider || (process.env.RESEND_API_KEY ? 'resend' : 'smtp');
 
   const senderName = currentSettings.senderName || 'OverDuty Hospital Backup';
-  const senderEmail = currentSettings.senderEmail || (currentSettings.smtpUser || 'onboarding@resend.dev');
+  const senderEmail = process.env.RESEND_SENDER_EMAIL || currentSettings.senderEmail || 'backup@roni.kodl.uk';
   const fromFormatted = `${senderName} <${senderEmail}>`;
 
   if (provider === 'resend' || currentSettings.resendApiKey || process.env.RESEND_API_KEY) {

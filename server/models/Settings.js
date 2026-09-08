@@ -46,12 +46,12 @@ const settingsSchema = new mongoose.Schema(
     },
     resendApiKey: {
       type: String,
-      default: '',
+      default: () => process.env.RESEND_API_KEY || '',
       trim: true,
     },
     senderEmail: {
       type: String,
-      default: 'onboarding@resend.dev',
+      default: 'backup@roni.kodl.uk',
       trim: true,
     },
     senderName: {

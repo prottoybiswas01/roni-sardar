@@ -979,16 +979,21 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                 </button>
               </div>
 
-              {/* Section 4: Central Email Gateway Configuration (System Sender) */}
+              {/* Section 4: Central Email Engine (Powered by Resend) */}
               <div className="bg-white rounded-2xl border border-slate-200/80 shadow-subtle p-6 sm:p-8">
                 <div className="border-b border-slate-100 pb-4 mb-6 flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                      <Server className="w-5 h-5 text-brand-600" />
-                      Central Email Gateway (System Sender)
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                        <Mail className="w-5 h-5 text-brand-600" />
+                        Automated Mail Engine (Resend)
+                      </h3>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Connected & Active
+                      </span>
+                    </div>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Configure your global email sender once. All automated midnight backups to staff will be sent through this gateway.
+                      Integrated directly with your domain via Resend. Automated midnight backups will be dispatched seamlessly to all staff.
                     </p>
                   </div>
 
@@ -1027,187 +1032,59 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                       <Clock className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
                     )}
                     <div>
-                      <span className="font-bold">Last Gateway Event: </span>
+                      <span className="font-bold">Last Dispatch Status: </span>
                       <span>{new Date(backupStatus.lastBackupAt).toLocaleString()} — {backupStatus.lastBackupMessage}</span>
                     </div>
                   </div>
                 )}
 
-                <form onSubmit={handleSaveBackupSettings} className="space-y-5">
-                  {/* Provider Choice: Resend API vs Custom Domain / SMTP */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                      Select Email Gateway Method:
-                    </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <label
-                        onClick={() => setBackupFormData({ ...backupFormData, emailProvider: 'resend' })}
-                        className={`p-3.5 rounded-xl border-2 cursor-pointer flex items-start gap-3 transition-all ${
-                          backupFormData.emailProvider === 'resend'
-                            ? 'border-brand-600 bg-brand-50/40 text-brand-950 shadow-xs'
-                            : 'border-slate-200 hover:border-slate-300 text-slate-700'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="emailProvider"
-                          value="resend"
-                          checked={backupFormData.emailProvider === 'resend'}
-                          onChange={() => setBackupFormData({ ...backupFormData, emailProvider: 'resend' })}
-                          className="mt-0.5 text-brand-600"
-                        />
-                        <div>
-                          <p className="text-xs font-bold flex items-center gap-1.5">
-                            ⚡ Resend API <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[10px]">Recommended</span>
-                          </p>
-                          <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                            Zero hassle, instant 100% inbox delivery. Free 3,000 emails/month. Just paste your Resend API key.
-                          </p>
-                        </div>
+                <form onSubmit={handleSaveBackupSettings} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Sender Email / Domain */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-slate-700">Sender Email (From Address)</label>
+                      <input
+                        type="text"
+                        value={backupFormData.senderEmail}
+                        onChange={(e) => setBackupFormData({ ...backupFormData, senderEmail: e.target.value })}
+                        placeholder="e.g. backup@roni.kodl.uk"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus-ring font-mono text-xs"
+                      />
+                      <p className="text-[10px] text-slate-400">
+                        Default: <code>backup@roni.kodl.uk</code> (verified on Resend).
+                      </p>
+                    </div>
+
+                    {/* Sender Display Name */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-slate-700">Sender Display Name</label>
+                      <input
+                        type="text"
+                        value={backupFormData.senderName}
+                        onChange={(e) => setBackupFormData({ ...backupFormData, senderName: e.target.value })}
+                        placeholder="OverDuty Hospital Backup"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus-ring font-medium"
+                      />
+                      <p className="text-[10px] text-slate-400">The title that appears in staff members' inboxes.</p>
+                    </div>
+
+                    {/* Master Backup Recipient Email */}
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                        <Crown className="w-3.5 h-3.5 text-amber-500" />
+                        Admin Master Backup Recipient Email
                       </label>
-
-                      <label
-                        onClick={() => setBackupFormData({ ...backupFormData, emailProvider: 'smtp' })}
-                        className={`p-3.5 rounded-xl border-2 cursor-pointer flex items-start gap-3 transition-all ${
-                          backupFormData.emailProvider === 'smtp'
-                            ? 'border-brand-600 bg-brand-50/40 text-brand-950 shadow-xs'
-                            : 'border-slate-200 hover:border-slate-300 text-slate-700'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="emailProvider"
-                          value="smtp"
-                          checked={backupFormData.emailProvider === 'smtp'}
-                          onChange={() => setBackupFormData({ ...backupFormData, emailProvider: 'smtp' })}
-                          className="mt-0.5 text-brand-600"
-                        />
-                        <div>
-                          <p className="text-xs font-bold">🌐 Domain / cPanel / Gmail SMTP</p>
-                          <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                            Use your own hosting webmail, domain mail server, or Gmail SMTP credentials.
-                          </p>
-                        </div>
-                      </label>
+                      <input
+                        type="email"
+                        value={backupFormData.backupEmail}
+                        onChange={(e) => setBackupFormData({ ...backupFormData, backupEmail: e.target.value })}
+                        placeholder="e.g. admin@hospital.com or your-email@gmail.com"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus-ring font-medium"
+                      />
+                      <p className="text-[10px] text-slate-400">
+                        Receives the master JSON snapshot and all-staff combined spreadsheet every night at 12:00 AM.
+                      </p>
                     </div>
-                  </div>
-
-                  {/* Resend API Fields */}
-                  {backupFormData.emailProvider === 'resend' ? (
-                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4 animate-in fade-in">
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
-                          <span>Resend API Key (starts with <code>re_...</code>)</span>
-                          <a
-                            href="https://resend.com/api-keys"
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[11px] text-brand-600 hover:underline font-bold"
-                          >
-                            Get Free Resend Key &rarr;
-                          </a>
-                        </label>
-                        <input
-                          type="password"
-                          value={backupFormData.resendApiKey}
-                          onChange={(e) => setBackupFormData({ ...backupFormData, resendApiKey: e.target.value })}
-                          placeholder={backupStatus?.resendApiKey ? '•••••••••••••••• (Configured)' : 're_1234567890abcdef...'}
-                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus-ring font-mono"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-semibold text-slate-700">Sender Email (From)</label>
-                          <input
-                            type="text"
-                            value={backupFormData.senderEmail}
-                            onChange={(e) => setBackupFormData({ ...backupFormData, senderEmail: e.target.value })}
-                            placeholder="onboarding@resend.dev or backup@yourdomain.com"
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus-ring font-mono text-xs"
-                          />
-                          <p className="text-[10px] text-slate-400">Use onboarding@resend.dev or your verified domain.</p>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-semibold text-slate-700">Sender Display Name</label>
-                          <input
-                            type="text"
-                            value={backupFormData.senderName}
-                            onChange={(e) => setBackupFormData({ ...backupFormData, senderName: e.target.value })}
-                            placeholder="OverDuty Hospital Backup"
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus-ring font-medium"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    /* SMTP Configuration Fields */
-                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4 animate-in fade-in">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-semibold text-slate-700">SMTP Host / Mail Server</label>
-                          <input
-                            type="text"
-                            value={backupFormData.smtpHost}
-                            onChange={(e) => setBackupFormData({ ...backupFormData, smtpHost: e.target.value })}
-                            placeholder="e.g. mail.yourdomain.com or smtp.gmail.com"
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus-ring font-mono text-xs"
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-semibold text-slate-700">SMTP Port</label>
-                          <input
-                            type="number"
-                            value={backupFormData.smtpPort}
-                            onChange={(e) => setBackupFormData({ ...backupFormData, smtpPort: Number(e.target.value) })}
-                            placeholder="465"
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus-ring font-mono text-xs"
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-semibold text-slate-700">SMTP Username / Email</label>
-                          <input
-                            type="text"
-                            value={backupFormData.smtpUser}
-                            onChange={(e) => setBackupFormData({ ...backupFormData, smtpUser: e.target.value })}
-                            placeholder="e.g. backup@yourdomain.com"
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus-ring font-medium"
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-semibold text-slate-700">SMTP Password</label>
-                          <input
-                            type="password"
-                            value={backupFormData.smtpPass}
-                            onChange={(e) => setBackupFormData({ ...backupFormData, smtpPass: e.target.value })}
-                            placeholder={backupStatus?.hasSmtpPass ? '•••••••••••• (Configured)' : 'Enter email / SMTP password'}
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus-ring font-mono"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Super Admin Master Backup Email */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                      <Crown className="w-3.5 h-3.5 text-amber-500" />
-                      Super Admin Master Backup Recipient
-                    </label>
-                    <input
-                      type="email"
-                      value={backupFormData.backupEmail}
-                      onChange={(e) => setBackupFormData({ ...backupFormData, backupEmail: e.target.value })}
-                      placeholder="e.g. admin@hospital.com"
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus-ring font-medium"
-                    />
-                    <p className="text-[11px] text-slate-400">
-                      Receives the master JSON snapshot and all-staff combined spreadsheet every night.
-                    </p>
                   </div>
 
                   {/* Toggles & Save Buttons */}
@@ -1236,7 +1113,7 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                         ) : (
                           <Check className="w-3.5 h-3.5 text-emerald-600" />
                         )}
-                        Test Gateway
+                        Test Email Delivery
                       </button>
 
                       <button
@@ -1249,7 +1126,7 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                         ) : (
                           <Save className="w-3.5 h-3.5" />
                         )}
-                        Save Gateway Settings
+                        Save Settings
                       </button>
                     </div>
                   </div>
