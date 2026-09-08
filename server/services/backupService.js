@@ -574,8 +574,8 @@ export const runMidnightAllUsersBackup = async () => {
     }
   }
 
-  // 3. Send Master DB Snapshot to Super Admin
-  if (settings && settings.backupEmail) {
+  // 3. Send Master DB Snapshot to Super Admin (only if enabled)
+  if (settings && settings.autoEmailBackup !== false && settings.backupEmail) {
     try {
       await executeEmailBackup(settings.backupEmail);
       console.log(`[Scheduler] Master database backup delivered to Admin: ${settings.backupEmail}`);

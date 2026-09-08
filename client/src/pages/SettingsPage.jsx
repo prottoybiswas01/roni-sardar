@@ -81,6 +81,8 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
 
   // Ultra-Simple Email Backup state
   const [userBackupEmail, setUserBackupEmail] = useState('');
+  const [userAutoBackupEnabled, setUserAutoBackupEnabled] = useState(true);
+  const [isUpdatingToggle, setIsUpdatingToggle] = useState(false);
   const [isEmailLocked, setIsEmailLocked] = useState(false);
   const [backupMonth, setBackupMonth] = useState(selectedMonth || new Date().getMonth() + 1);
   const [backupYear, setBackupYear] = useState(selectedYear || new Date().getFullYear());
@@ -91,11 +93,81 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
     if (currentUser) {
       const emailVal = currentUser.backupEmail || currentUser.email || '';
       setUserBackupEmail(emailVal);
+      setUserAutoBackupEnabled(currentUser.autoEmailBackup !== false);
       if (currentUser.backupEmail) {
         setIsEmailLocked(true);
       }
     }
   }, [currentUser]);
+
+  // User Email Backup Handlers
+  const handleToggleAutoEmailBackup = async (nextValue) => {
+    try {
+      setIsUpdatingToggle(true);
+      setUserAutoBackupEnabled(nextValue);
+      await authApi.updateBackupEmail({
+        backupEmail: userBackupEmail.trim(),
+        autoEmailBackup: nextValue,
+      });
+      await refreshUser?.();
+      if (nextValue) {
+        toast.success('অটোমেটিক ইমেইল ব্যাকআপ চালু করা হয়েছে (রাত ১২টায় মেইল যাবে) ✅');
+      } else {
+        toast.info('অটোমেটিক ইমেইল ব্যাকআপ বন্ধ করা হয়েছে (রাত ১২টায় আর মেইল যাবে না) ⛔');
+      }
+    } catch (err) {
+      setUserAutoBackupEnabled(!nextValue);
+      toast.error('Failed to update setting: ' + err.message);
+    } finally {
+      setIsUpdatingToggle(false);
+    }
+  };
+
+  const handleSaveUserBackupEmail = async (e) => {
+    e?.preventDefault?.();
+    if (!userBackupEmail || !userBackupEmail.includes('@')) {
+      toast.warning('Please enter a valid email address');
+      return;
+    }
+    try {
+      setIsSavingEmail(true);
+      const res = await authApi.updateBackupEmail({
+        backupEmail: userBackupEmail.trim(),
+        autoEmailBackup: userAutoBackupEnabled,
+      });
+      toast.success(res.message || 'Backup email address saved successfully!');
+      await refreshUser?.();
+      if (!isSuperAdmin) {
+        setIsEmailLocked(true);
+      }
+    } catch (err) {
+      toast.error('Failed to save email: ' + err.message);
+    } finally {
+      setIsSavingEmail(false);
+    }
+  };
+
+  const handleSendExcelNow = async () => {
+    const targetEmail = userBackupEmail.trim() || currentUser?.email;
+    if (!targetEmail || !targetEmail.includes('@')) {
+      toast.warning('Please save a valid email address first');
+      return;
+    }
+    try {
+      setIsSendingEmailNow(true);
+      const res = await backupApi.triggerEmailBackup({
+        customRecipient: targetEmail,
+        forSelfOnly: true,
+        month: backupMonth === 'all' ? null : Number(backupMonth),
+        year: Number(backupYear),
+      });
+      toast.success(res.message || `Excel report sent successfully to ${targetEmail}!`);
+    } catch (err) {
+      toast.error('Failed to send email: ' + err.message);
+    } finally {
+      setIsSendingEmailNow(false);
+    }
+  };
 
   // Inspect User Profile & Records Modal state
   const [inspectingUser, setInspectingUser] = useState(null);
@@ -218,47 +290,17 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
     }
   };
 
-  // User Email Backup Handlers
-  const handleSaveUserBackupEmail = async (e) => {
-    e?.preventDefault?.();
-    if (!userBackupEmail || !userBackupEmail.includes('@')) {
-      toast.warning('Please enter a valid email address');
-      return;
-    }
+  const handleToggleUserAutoBackup = async (userId, currentAutoBackup, userName) => {
+    const nextValue = !currentAutoBackup;
     try {
-      setIsSavingEmail(true);
-      const res = await authApi.updateBackupEmail(userBackupEmail.trim());
-      toast.success(res.message || 'Backup email address saved successfully!');
-      await refreshUser?.();
-      if (!isSuperAdmin) {
-        setIsEmailLocked(true);
-      }
+      setActionLoadingId(userId);
+      await authApi.updateUser(userId, { autoEmailBackup: nextValue });
+      toast.success(`"${userName}" এর জন্য অটো ব্যাকআপ ${nextValue ? 'চালু (ON)' : 'বন্ধ (OFF)'} করা হয়েছে`);
+      fetchUsers();
     } catch (err) {
-      toast.error('Failed to save email: ' + err.message);
+      toast.error('Failed to update auto backup setting: ' + err.message);
     } finally {
-      setIsSavingEmail(false);
-    }
-  };
-
-  const handleSendExcelNow = async () => {
-    const targetEmail = userBackupEmail.trim() || currentUser?.email;
-    if (!targetEmail || !targetEmail.includes('@')) {
-      toast.warning('Please save a valid email address first');
-      return;
-    }
-    try {
-      setIsSendingEmailNow(true);
-      const res = await backupApi.triggerEmailBackup({
-        customRecipient: targetEmail,
-        forSelfOnly: true,
-        month: backupMonth === 'all' ? null : Number(backupMonth),
-        year: Number(backupYear),
-      });
-      toast.success(res.message || `Excel report sent successfully to ${targetEmail}!`);
-    } catch (err) {
-      toast.error('Failed to send email: ' + err.message);
-    } finally {
-      setIsSendingEmailNow(false);
+      setActionLoadingId(null);
     }
   };
 
@@ -580,6 +622,7 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                       <th className="py-3 px-4">Email</th>
                       <th className="py-3 px-4">Role Assignment</th>
                       <th className="py-3 px-4">Account Status</th>
+                      <th className="py-3 px-4 text-center">Auto Backup (12 AM)</th>
                       <th className="py-3 px-4 text-right">Super Admin Action</th>
                     </tr>
                   </thead>
@@ -641,6 +684,28 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                                 <UserX className="w-3 h-3 text-rose-600" /> Inactive / Blocked
                               </span>
                             )}
+                          </td>
+
+                          {/* Auto Backup Toggle (Super Admin Control) */}
+                          <td className="py-3.5 px-4 text-center">
+                            <button
+                              type="button"
+                              disabled={isLoading}
+                              onClick={() => handleToggleUserAutoBackup(u._id, u.autoEmailBackup !== false, u.name)}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all shadow-subtle active:scale-95 ${
+                                u.autoEmailBackup !== false
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100'
+                                  : 'bg-slate-100 text-slate-500 border border-slate-300 hover:bg-slate-200'
+                              }`}
+                              title="Click to toggle 12:00 AM auto email backup on/off"
+                            >
+                              <span
+                                className={`w-2 h-2 rounded-full ${
+                                  u.autoEmailBackup !== false ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+                                }`}
+                              />
+                              {u.autoEmailBackup !== false ? 'ON (রাত ১২টা)' : 'OFF (বন্ধ)'}
+                            </button>
                           </td>
 
                           {/* Actions */}
@@ -741,13 +806,82 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                     Automated Excel Email Backup
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Configure your backup email and receive your clinical records directly as an Excel spreadsheet.
+                    Configure your email backup settings and midnight automated schedule
                   </p>
                 </div>
               </div>
             </div>
 
             <div className="p-6 sm:p-8 space-y-6">
+              {/* ON/OFF Midnight Email Delivery Toggle Card */}
+              <div
+                className={`p-5 rounded-2xl border transition-all ${
+                  userAutoBackupEnabled
+                    ? 'bg-emerald-50/50 border-emerald-200 shadow-sm'
+                    : 'bg-slate-50 border-slate-200'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1.5 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                        <Clock className={`w-4 h-4 ${userAutoBackupEnabled ? 'text-emerald-600' : 'text-slate-400'}`} />
+                        Daily Midnight Auto Backup (রাত ১২টার ব্যাকআপ)
+                      </h4>
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                          userAutoBackupEnabled
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                            : 'bg-slate-200 text-slate-600 border border-slate-300'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${userAutoBackupEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                        {userAutoBackupEnabled ? 'সক্রিয় (Active)' : 'বন্ধ (Disabled)'}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      {userAutoBackupEnabled ? (
+                        <span>
+                          প্রতিদিন <strong>রাত ১২:০০ টায় (00:00)</strong> আপনার সম্পূর্ণ ওভার ডিউটি এক্সেল রিপোর্ট স্বয়ংক্রিয়ভাবে আপনার ইমেইলে পাঠিয়ে দেওয়া হবে।
+                        </span>
+                      ) : (
+                        <span>
+                          স্বয়ংক্রিয় ব্যাকআপ সার্ভিস বর্তমানে <strong>বন্ধ (OFF)</strong> রাখা হয়েছে। রাত ১২টায় আপনার ঠিকানায় কোনো ইমেইল যাবে না।
+                        </span>
+                      )}
+                    </p>
+                  </div>
+
+                  {/* Switch Toggle Button */}
+                  <button
+                    type="button"
+                    disabled={isUpdatingToggle}
+                    onClick={() => handleToggleAutoEmailBackup(!userAutoBackupEnabled)}
+                    className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-opacity-75 disabled:opacity-50 ${
+                      userAutoBackupEnabled ? 'bg-emerald-600' : 'bg-slate-300'
+                    }`}
+                    title={userAutoBackupEnabled ? 'Click to turn OFF auto backup' : 'Click to turn ON auto backup'}
+                  >
+                    <span className="sr-only">Toggle Automated Midnight Backup</span>
+                    <span
+                      aria-hidden="true"
+                      className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                        userAutoBackupEnabled ? 'translate-x-7' : 'translate-x-0'
+                      } flex items-center justify-center`}
+                    >
+                      {isUpdatingToggle ? (
+                        <Loader2 className="w-3 h-3 animate-spin text-slate-500" />
+                      ) : userAutoBackupEnabled ? (
+                        <Check className="w-3 h-3 text-emerald-600" />
+                      ) : (
+                        <Lock className="w-3 h-3 text-slate-400" />
+                      )}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
               {/* Email Address Section */}
               <form onSubmit={handleSaveUserBackupEmail} className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -817,7 +951,7 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
               {/* Month & Year Selector + Send Now */}
               <div className="space-y-4">
                 <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-                  Select Report Period & Dispatch
+                  Manual Instant Dispatch (তাৎক্ষণিক রিপোর্ট পাঠান)
                 </label>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -871,21 +1005,6 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                     </>
                   )}
                 </button>
-              </div>
-
-              {/* Automatic Midnight Info Card */}
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center shrink-0 mt-0.5">
-                  <Clock className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-slate-900">
-                    Automatic Midnight Delivery Active
-                  </h4>
-                  <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-                    Every night at <strong>12:00 AM (00:00)</strong>, your complete over-duty Excel report for the active month is automatically generated and sent directly to your email.
-                  </p>
-                </div>
               </div>
             </div>
           </div>

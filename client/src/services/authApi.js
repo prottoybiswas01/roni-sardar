@@ -19,10 +19,11 @@ export const authApi = {
     return await apiClient('/auth/me');
   },
 
-  updateBackupEmail: async (backupEmail) => {
+  updateBackupEmail: async (payload) => {
+    const bodyData = typeof payload === 'string' ? { backupEmail: payload } : payload;
     return await apiClient('/auth/backup-email', {
       method: 'PUT',
-      body: JSON.stringify({ backupEmail }),
+      body: JSON.stringify(bodyData),
     });
   },
 

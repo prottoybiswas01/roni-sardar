@@ -233,12 +233,12 @@ export const getUsers = async (req, res, next) => {
   }
 };
 
-// @desc    Update user status or role (Super Admin & Admin only)
+// @desc    Update user status, role, or backup preferences (Super Admin & Admin only)
 // @route   PUT /api/auth/users/:id
 // @access  Private/Admin/SuperAdmin
 export const updateUser = async (req, res, next) => {
   try {
-    const { role, status, name, password } = req.body;
+    const { role, status, name, password, autoEmailBackup, backupEmail } = req.body;
     const user = await User.findById(req.params.id);
 
     if (!user) {
@@ -262,13 +262,15 @@ export const updateUser = async (req, res, next) => {
     if (role) user.role = role;
     if (status) user.status = status;
     if (name) user.name = name;
+    if (autoEmailBackup !== undefined) user.autoEmailBackup = Boolean(autoEmailBackup);
+    if (backupEmail !== undefined) user.backupEmail = backupEmail ? backupEmail.trim().toLowerCase() : '';
     if (password && password.trim().length >= 6) {
       user.password = password.trim();
     }
 
     await user.save();
 
-    // If user was newly approved/activated, send beautiful notification email via Resend
+    // If user was newly approved/activated, send notification email via Resend
     if (status === 'active' && wasPending) {
       try {
         const hospitalName = 'Ad-din Akij Medical College Hospital';
@@ -326,6 +328,8 @@ export const updateUser = async (req, res, next) => {
         email: user.email,
         role: user.role,
         status: user.status,
+        autoEmailBackup: user.autoEmailBackup,
+        backupEmail: user.backupEmail,
       },
     });
   } catch (error) {
@@ -333,25 +337,32 @@ export const updateUser = async (req, res, next) => {
   }
 };
 
-// @desc    Update current user's backup email
+// @desc    Update current user's backup email and auto backup toggle
 // @route   PUT /api/auth/backup-email
 // @access  Private
 export const updateMyBackupEmail = async (req, res, next) => {
   try {
-    const { backupEmail } = req.body;
-    if (!backupEmail) {
-      return res.status(400).json({ success: false, message: 'Please provide a valid email address' });
-    }
+    const { backupEmail, autoEmailBackup } = req.body;
     const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
-    user.backupEmail = backupEmail.trim().toLowerCase();
+
+    if (backupEmail !== undefined && backupEmail.trim()) {
+      user.backupEmail = backupEmail.trim().toLowerCase();
+    }
+    if (autoEmailBackup !== undefined) {
+      user.autoEmailBackup = Boolean(autoEmailBackup);
+    }
+
     await user.save();
     res.status(200).json({
       success: true,
-      message: 'Backup email saved successfully',
-      data: { backupEmail: user.backupEmail },
+      message: 'Backup preferences updated successfully',
+      data: {
+        backupEmail: user.backupEmail,
+        autoEmailBackup: user.autoEmailBackup,
+      },
     });
   } catch (error) {
     next(error);
