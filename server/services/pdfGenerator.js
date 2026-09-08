@@ -3,6 +3,7 @@ import PDFDocument from 'pdfkit';
 /**
  * Generates a clean, simple, black-and-white print-friendly A4 PDF report.
  * Specifically customized for Ad-din Akij Medical College Hospital "One Call" Over Duty reporting.
+ * Optimized for 40-50 rows per page with fixed bottom signatures.
  *
  * @param {Object} options
  * @param {Array} options.records - List of patient records
@@ -24,7 +25,7 @@ export const generateMonthlyRecordsPDF = ({
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({
-        margin: 36,
+        margin: 30,
         size: 'A4',
         autoFirstPage: true,
       });
@@ -57,128 +58,124 @@ export const generateMonthlyRecordsPDF = ({
           return sum + val;
         }, 0);
 
-      // --- 1. CLEAN HEADER ---
-      doc.fillColor('#000000').fontSize(16).font('Helvetica-Bold').text(
+      // --- 1. CLEAN COMPACT HEADER ---
+      doc.fillColor('#000000').fontSize(15).font('Helvetica-Bold').text(
         hospitalName.toUpperCase(),
-        36,
-        36,
-        { width: 523, align: 'center', lineBreak: false }
+        30,
+        28,
+        { width: 535, align: 'center', lineBreak: false }
       );
 
-      doc.fontSize(11).font('Helvetica').text(
+      doc.fontSize(10).font('Helvetica').text(
         'One Call',
-        36,
-        58,
-        { width: 523, align: 'center', lineBreak: false }
+        30,
+        48,
+        { width: 535, align: 'center', lineBreak: false }
       );
 
-      doc.fontSize(11).font('Helvetica-Bold').text(
+      doc.fontSize(10.5).font('Helvetica-Bold').text(
         monthLabel,
-        36,
-        74,
-        { width: 523, align: 'center', lineBreak: false }
+        30,
+        62,
+        { width: 535, align: 'center', lineBreak: false }
       );
 
       // Top divider line
-      doc.moveTo(36, 92).lineTo(559, 92).lineWidth(1).strokeColor('#000000').stroke();
+      doc.moveTo(30, 76).lineTo(565, 76).lineWidth(0.8).strokeColor('#000000').stroke();
 
       // --- 2. SUMMARY METRICS TEXT LINE ---
-      doc.fontSize(9.5).font('Helvetica-Bold').fillColor('#000000');
+      doc.fontSize(9).font('Helvetica-Bold').fillColor('#000000');
       const summaryText = `Total Records: ${records.length}   |   Unique Patients: ${uniquePatients}   |   Total Remark / Amount: Tk. ${computedTotal.toLocaleString()}`;
-      doc.text(summaryText, 36, 98, { width: 523, align: 'center', lineBreak: false });
+      doc.text(summaryText, 30, 82, { width: 535, align: 'center', lineBreak: false });
 
       // Bottom subheader divider line
-      doc.moveTo(36, 114).lineTo(559, 114).lineWidth(1).strokeColor('#000000').stroke();
+      doc.moveTo(30, 96).lineTo(565, 96).lineWidth(0.8).strokeColor('#000000').stroke();
 
-      // --- 3. CLEAN PATIENT RECORDS TABLE ---
-      let startTableY = 124;
+      // --- 3. CLEAN HIGH-DENSITY TABLE (FITS 40-50 ROWS PER PAGE) ---
+      let startTableY = 104;
       let currentY = startTableY;
 
       const drawTableHeader = (y) => {
-        doc.rect(36, y, 523, 18).strokeColor('#000000').lineWidth(1).stroke();
-        doc.fillColor('#000000').fontSize(8.5).font('Helvetica-Bold');
-        doc.text('SL', 40, y + 5, { width: 25, align: 'center', lineBreak: false });
-        doc.text('Patient ID', 70, y + 5, { width: 85, lineBreak: false });
-        doc.text('Patient Name', 160, y + 5, { width: 175, lineBreak: false });
-        doc.text('Date', 340, y + 5, { width: 65, lineBreak: false });
-        doc.text('Time', 410, y + 5, { width: 55, lineBreak: false });
-        doc.text('Remark (Tk)', 470, y + 5, { width: 82, align: 'right', lineBreak: false });
+        doc.rect(30, y, 535, 15).strokeColor('#000000').lineWidth(0.8).stroke();
+        doc.fillColor('#000000').fontSize(8).font('Helvetica-Bold');
+        doc.text('SL', 34, y + 4, { width: 22, align: 'center', lineBreak: false });
+        doc.text('Patient ID', 60, y + 4, { width: 80, lineBreak: false });
+        doc.text('Patient Name', 145, y + 4, { width: 180, lineBreak: false });
+        doc.text('Date', 330, y + 4, { width: 65, lineBreak: false });
+        doc.text('Time', 400, y + 4, { width: 55, lineBreak: false });
+        doc.text('Remark (Tk)', 465, y + 4, { width: 95, align: 'right', lineBreak: false });
       };
 
       drawTableHeader(currentY);
-      currentY += 18;
+      currentY += 15;
 
       records.forEach((r, idx) => {
-        // Auto page break if table exceeds printable area
-        if (currentY > 710) {
+        // Auto page break: allow up to 740pt height (~45-50 rows) before breaking
+        if (currentY > 740) {
           doc.addPage();
-          currentY = 40;
+          currentY = 30;
           drawTableHeader(currentY);
-          currentY += 18;
+          currentY += 15;
         }
 
         const dateStr = r.date ? new Date(r.date).toISOString().split('T')[0] : '';
         const timeStr = r.time || '';
         const remarkStr = String(r.remark || '100');
 
-        doc.fillColor('#000000').fontSize(8).font('Helvetica');
-        doc.text(String(r.sl || idx + 1), 40, currentY + 3.5, { width: 25, align: 'center', lineBreak: false });
-        doc.font('Helvetica-Bold').text(String(r.patientId || ''), 70, currentY + 3.5, { width: 85, lineBreak: false });
-        doc.font('Helvetica').text(String(r.patientName || 'PATIENT').substring(0, 32), 160, currentY + 3.5, { width: 175, lineBreak: false });
-        doc.text(dateStr, 340, currentY + 3.5, { width: 65, lineBreak: false });
-        doc.text(timeStr, 410, currentY + 3.5, { width: 55, lineBreak: false });
-        doc.font('Helvetica-Bold').text(remarkStr, 470, currentY + 3.5, { width: 82, align: 'right', lineBreak: false });
+        doc.fillColor('#000000').fontSize(7.5).font('Helvetica');
+        doc.text(String(r.sl || idx + 1), 34, currentY + 2.5, { width: 22, align: 'center', lineBreak: false });
+        doc.font('Helvetica-Bold').text(String(r.patientId || ''), 60, currentY + 2.5, { width: 80, lineBreak: false });
+        doc.font('Helvetica').text(String(r.patientName || 'PATIENT').substring(0, 32), 145, currentY + 2.5, { width: 180, lineBreak: false });
+        doc.text(dateStr, 330, currentY + 2.5, { width: 65, lineBreak: false });
+        doc.text(timeStr, 400, currentY + 2.5, { width: 55, lineBreak: false });
+        doc.font('Helvetica-Bold').text(remarkStr, 465, currentY + 2.5, { width: 95, align: 'right', lineBreak: false });
 
-        doc.moveTo(36, currentY + 15).lineTo(559, currentY + 15).lineWidth(0.5).strokeColor('#cccccc').stroke();
-        currentY += 15.5;
+        doc.moveTo(30, currentY + 12).lineTo(565, currentY + 12).lineWidth(0.3).strokeColor('#dddddd').stroke();
+        currentY += 12.5;
       });
 
       // Total summary row
-      if (currentY > 700) {
+      if (currentY > 735) {
         doc.addPage();
-        currentY = 40;
+        currentY = 30;
       }
-      doc.rect(36, currentY + 2, 523, 18).strokeColor('#000000').lineWidth(1).stroke();
-      doc.fillColor('#000000').fontSize(8.5).font('Helvetica-Bold');
-      doc.text(`TOTAL ENTRIES: ${records.length}`, 44, currentY + 6, { width: 200, lineBreak: false });
-      doc.text(`GRAND TOTAL: Tk. ${computedTotal.toLocaleString()}`, 250, currentY + 6, { width: 300, align: 'right', lineBreak: false });
+      doc.rect(30, currentY + 2, 535, 15).strokeColor('#000000').lineWidth(0.8).stroke();
+      doc.fillColor('#000000').fontSize(8).font('Helvetica-Bold');
+      doc.text(`TOTAL ENTRIES: ${records.length}`, 38, currentY + 5.5, { width: 200, lineBreak: false });
+      doc.text(`GRAND TOTAL: Tk. ${computedTotal.toLocaleString()}`, 300, currentY + 5.5, { width: 260, align: 'right', lineBreak: false });
 
-      // --- 4. SIGNATURE BLOCKS (BOTTOM OF DOCUMENT) ---
-      let sigY = currentY + 60;
-      if (sigY > 740) {
-        doc.addPage();
-        sigY = 100;
-      }
+      // --- 4. SIGNATURE BLOCKS (FIXED DIRECTLY AT THE VERY BOTTOM OF THE DOCUMENT) ---
+      const sigY = 780;
 
       // Left Signature: Roni Sarder / Medical Technology
       const leftName = staffName && staffName.toLowerCase().includes('roni') ? 'Roni Sarder' : staffName || 'Roni Sarder';
-      doc.moveTo(50, sigY).lineTo(210, sigY).lineWidth(0.8).strokeColor('#000000').stroke();
-      doc.fillColor('#000000').fontSize(9.5).font('Helvetica-Bold').text(
+      doc.moveTo(45, sigY).lineTo(200, sigY).lineWidth(0.8).strokeColor('#000000').stroke();
+      doc.fillColor('#000000').fontSize(9).font('Helvetica-Bold').text(
         leftName,
-        50,
-        sigY + 6,
-        { width: 160, align: 'center', lineBreak: false }
+        45,
+        sigY + 4.5,
+        { width: 155, align: 'center', lineBreak: false }
       );
-      doc.fontSize(8.5).font('Helvetica').text(
+      doc.fontSize(7.5).font('Helvetica').text(
         'Medical Technology',
-        50,
-        sigY + 19,
-        { width: 160, align: 'center', lineBreak: false }
+        45,
+        sigY + 15,
+        { width: 155, align: 'center', lineBreak: false }
       );
 
       // Right Signature: Mizanur Rahman / Incharge
-      doc.moveTo(385, sigY).lineTo(545, sigY).lineWidth(0.8).strokeColor('#000000').stroke();
-      doc.fillColor('#000000').fontSize(9.5).font('Helvetica-Bold').text(
+      doc.moveTo(395, sigY).lineTo(550, sigY).lineWidth(0.8).strokeColor('#000000').stroke();
+      doc.fillColor('#000000').fontSize(9).font('Helvetica-Bold').text(
         'Mizanur Rahman',
-        385,
-        sigY + 6,
-        { width: 160, align: 'center', lineBreak: false }
+        395,
+        sigY + 4.5,
+        { width: 155, align: 'center', lineBreak: false }
       );
-      doc.fontSize(8.5).font('Helvetica').text(
+      doc.fontSize(7.5).font('Helvetica').text(
         'Incharge',
-        385,
-        sigY + 19,
-        { width: 160, align: 'center', lineBreak: false }
+        395,
+        sigY + 15,
+        { width: 155, align: 'center', lineBreak: false }
       );
 
       doc.end();

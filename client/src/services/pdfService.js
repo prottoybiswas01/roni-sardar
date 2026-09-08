@@ -5,7 +5,8 @@ import { formatSL } from '../utils/formatters';
 
 /**
  * Generate and download a formatted monochrome black & white PDF report
- * Exactly matching Ad-din Akij Medical College Hospital "One Call" format with signatures.
+ * Exactly matching Ad-din Akij Medical College Hospital "One Call" format.
+ * High-density layout supporting 40-50 rows per page with fixed bottom signatures.
  */
 export const exportMonthlyReportToPDF = ({
   records = [],
@@ -38,33 +39,33 @@ export const exportMonthlyReportToPDF = ({
 
   // 1. Hospital Official Name
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
+  doc.setFontSize(13.5);
   doc.setTextColor(0, 0, 0);
-  doc.text(hospitalName.toUpperCase(), pageWidth / 2, 14, { align: 'center' });
+  doc.text(hospitalName.toUpperCase(), pageWidth / 2, 12, { align: 'center' });
 
   // 2. "One Call" Header
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10.5);
-  doc.text('One Call', pageWidth / 2, 20, { align: 'center' });
+  doc.setFontSize(10);
+  doc.text('One Call', pageWidth / 2, 17.5, { align: 'center' });
 
   // 3. Month & Year
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.text(monthYearString, pageWidth / 2, 26, { align: 'center' });
+  doc.setFontSize(10.5);
+  doc.text(monthYearString, pageWidth / 2, 23, { align: 'center' });
 
   // Divider Line 1
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.35);
-  doc.line(14, 29, pageWidth - 14, 29);
+  doc.line(12, 25.5, pageWidth - 12, 25.5);
 
   // 4. One-line Summary
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   const summaryText = `Total Records: ${records.length}   |   Unique Patients: ${uniquePatients}   |   Total Remark / Amount: Tk. ${totalAmount.toLocaleString()}`;
-  doc.text(summaryText, pageWidth / 2, 33.5, { align: 'center' });
+  doc.text(summaryText, pageWidth / 2, 29.5, { align: 'center' });
 
   // Divider Line 2
-  doc.line(14, 36, pageWidth - 14, 36);
+  doc.line(12, 32, pageWidth - 12, 32);
 
   // 5. Build Table Rows
   const tableData = records.map((rec, index) => {
@@ -78,9 +79,9 @@ export const exportMonthlyReportToPDF = ({
     return [slVal, idVal, nameVal, dateVal, timeVal, remarkVal];
   });
 
-  // 6. Render AutoTable (Black & White, Print-friendly)
+  // 6. Render AutoTable (Compact high-density: fits 40-50 rows per page)
   autoTable(doc, {
-    startY: 39,
+    startY: 34.5,
     head: [['SL', 'Patient ID', 'Patient Name', 'Date', 'Time', 'Remark (Tk)']],
     body: tableData,
     foot: [[`TOTAL ENTRIES: ${records.length}`, '', '', '', '', `Tk. ${totalAmount.toLocaleString()}`]],
@@ -88,71 +89,68 @@ export const exportMonthlyReportToPDF = ({
     headStyles: {
       textColor: [0, 0, 0],
       fontStyle: 'bold',
-      fontSize: 8.5,
+      fontSize: 8,
       halign: 'left',
-      cellPadding: 2,
+      cellPadding: 1.2,
       lineWidth: { top: 0.35, bottom: 0.35, left: 0.35, right: 0.35 },
       lineColor: [0, 0, 0],
     },
     bodyStyles: {
       textColor: [0, 0, 0],
-      fontSize: 8,
-      cellPadding: 1.8,
+      fontSize: 7.5,
+      cellPadding: 0.9,
       lineWidth: { bottom: 0.15 },
-      lineColor: [200, 200, 200],
+      lineColor: [210, 210, 210],
     },
     footStyles: {
       textColor: [0, 0, 0],
       fontStyle: 'bold',
-      fontSize: 8.5,
-      cellPadding: 2,
+      fontSize: 8,
+      cellPadding: 1.2,
       lineWidth: { top: 0.35, bottom: 0.35, left: 0.35, right: 0.35 },
       lineColor: [0, 0, 0],
     },
     columnStyles: {
-      0: { halign: 'center', cellWidth: 12 }, // SL
-      1: { cellWidth: 28, fontStyle: 'bold' }, // Patient ID
-      2: { cellWidth: 62 }, // Patient Name
+      0: { halign: 'center', cellWidth: 10 }, // SL
+      1: { cellWidth: 26, fontStyle: 'bold' }, // Patient ID
+      2: { cellWidth: 68 }, // Patient Name
       3: { cellWidth: 24, halign: 'center' }, // Date
       4: { cellWidth: 24, halign: 'center' }, // Time
-      5: { cellWidth: 32, halign: 'right', fontStyle: 'bold' }, // Remark (Tk)
+      5: { cellWidth: 34, halign: 'right', fontStyle: 'bold' }, // Remark (Tk)
     },
-    margin: { top: 39, left: 14, right: 14, bottom: 35 },
+    margin: { top: 34.5, left: 12, right: 12, bottom: 28 },
   });
 
-  // 7. Signature Blocks (at the bottom)
-  let finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY : 180;
-  if (finalY + 30 > pageHeight - 15) {
-    doc.addPage();
-    finalY = 30;
-  }
+  // 7. Signature Blocks (Anchored directly at the very bottom of the document)
+  const pageCount = doc.internal.getNumberOfPages();
+  doc.setPage(pageCount);
 
-  const sigY = finalY + 22;
+  const sigY = pageHeight - 20;
 
   // Left Signature: Roni Sarder / Medical Technology
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.35);
-  doc.line(20, sigY, 70, sigY);
+  doc.line(18, sigY, 68, sigY);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
+  doc.setFontSize(9);
   doc.setTextColor(0, 0, 0);
-  doc.text('Roni Sarder', 45, sigY + 4.5, { align: 'center' });
+  doc.text('Roni Sarder', 43, sigY + 4, { align: 'center' });
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.text('Medical Technology', 45, sigY + 8.5, { align: 'center' });
+  doc.setFontSize(7.5);
+  doc.text('Medical Technology', 43, sigY + 7.5, { align: 'center' });
 
   // Right Signature: Mizanur Rahman / Incharge
-  doc.line(pageWidth - 70, sigY, pageWidth - 20, sigY);
+  doc.line(pageWidth - 68, sigY, pageWidth - 18, sigY);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.text('Mizanur Rahman', pageWidth - 45, sigY + 4.5, { align: 'center' });
+  doc.setFontSize(9);
+  doc.text('Mizanur Rahman', pageWidth - 43, sigY + 4, { align: 'center' });
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.text('Incharge', pageWidth - 45, sigY + 8.5, { align: 'center' });
+  doc.setFontSize(7.5);
+  doc.text('Incharge', pageWidth - 43, sigY + 7.5, { align: 'center' });
 
   // 8. Save and Download PDF
   const fileName = `OverDuty_Report_${monthName}_${year}.pdf`;
