@@ -1,7 +1,12 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import Record from '../models/Record.js';
 import Settings from '../models/Settings.js';
-import { dispatchEmail } from '../services/backupService.js';
+import {
+  dispatchEmail,
+  generateMonthlyRecordsPDF,
+  generateMonthlyRecordsExcelBuffer,
+} from '../services/backupService.js';
 
 // Primary Super Administrator Email for 2FA and System Security Alerts
 export const PRIMARY_SUPERADMIN_EMAIL = 'prottoybiswas575358@gmail.com';
@@ -871,10 +876,165 @@ export const verifyAndDeleteUser = async (req, res, next) => {
       });
     }
 
-    // Delete user from database
+    // 1. Fetch ALL lifetime records created by this user across all months & years
+    const userRecords = await Record.find({ createdBy: user._id, isDeleted: { $ne: true } })
+      .sort({ date: 1, sl: 1 })
+      .lean();
+
+    const totalEntries = userRecords.length;
+    const uniquePatients = new Set(
+      userRecords.map((r) => String(r.patientId || '').trim()).filter(Boolean)
+    ).size;
+    const totalAmount = userRecords.reduce((sum, r) => {
+      const val = parseFloat(String(r.remark || '0').replace(/[^0-9.-]+/g, '')) || 0;
+      return sum + val;
+    }, 0);
+
+    const settings = (await Settings.findOne().lean()) || {};
+    const hospitalName = settings.hospitalName || 'Ad-din Akij Medical College Hospital';
+    const location = settings.location || 'Clinical Wards';
+    const safeStaffSlug = (user.username || user.name || 'staff')
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '_');
+
+    const attachments = [];
+
+    // Generate Full Lifetime Printable PDF
+    try {
+      const pdfBuffer = await generateMonthlyRecordsPDF({
+        records: userRecords,
+        staffName: user.name,
+        hospitalName,
+        location,
+        month: 'all',
+        year: 'all',
+        totalAmount,
+      });
+      if (pdfBuffer) {
+        attachments.push({
+          filename: `OverDuty_Complete_Lifetime_Records_${safeStaffSlug}.pdf`,
+          contentType: 'application/pdf',
+          content: pdfBuffer,
+        });
+      }
+    } catch (pdfErr) {
+      console.error('[User Delete PDF Gen Error]:', pdfErr.message);
+    }
+
+    // Generate Full Lifetime Excel (.xlsx) Spreadsheet
+    try {
+      const excelBuffer = await generateMonthlyRecordsExcelBuffer({
+        records: userRecords,
+        hospitalName,
+        location,
+        month: 'all',
+        year: 'all',
+      });
+      if (excelBuffer) {
+        attachments.push({
+          filename: `OverDuty_Complete_Lifetime_Records_${safeStaffSlug}.xlsx`,
+          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          content: excelBuffer,
+        });
+      }
+    } catch (excelErr) {
+      console.error('[User Delete Excel Gen Error]:', excelErr.message);
+    }
+
+    // 2. Dispatch Comprehensive Lifetime Farewell & Record Archive Email to Deleted User
+    const targetRecipient = user.backupEmail || user.email;
+    if (targetRecipient) {
+      try {
+        const farewellHtml = `
+          <!DOCTYPE html>
+          <html lang="bn">
+          <head><meta charset="utf-8"></head>
+          <body style="font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px; color: #1e293b;">
+            <div style="max-width: 620px; margin: 0 auto; background: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.07); border: 1px solid #e2e8f0;">
+              
+              <!-- Header -->
+              <div style="background: linear-gradient(135deg, #0284c7 0%, #0f172a 100%); padding: 24px 28px; color: #ffffff; text-align: center;">
+                <h1 style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.3px;">🏥 ${hospitalName}</h1>
+                <p style="margin: 6px 0 0; font-size: 13px; color: #e0f2fe;">OverDuty Pro — সম্পূর্ণ লাইফটাইম রেকর্ড ব্যাকআপ ও অ্যাকাউন্ট ক্লোজিং</p>
+              </div>
+
+              <!-- Body -->
+              <div style="padding: 26px 28px;">
+                <h2 style="font-size: 16px; color: #0f172a; margin-top: 0;">প্রিয় ${user.name},</h2>
+                <p style="font-size: 13.5px; line-height: 1.6; color: #475569; margin-bottom: 20px;">
+                  আপনার <strong>${hospitalName}</strong> এর OverDuty Pro অ্যাকাউন্টটি সফলভাবে ক্লোজ/মুছে ফেলা হয়েছে। আপনার কাজের সমস্ত ডাটা যেন আজীবনের জন্য সুরক্ষিত থাকে, সেজন্য আপনার শুরু থেকে আজ পর্যন্ত এন্ট্রি করা <strong>সকল মাসের সম্পূর্ণ রেকর্ড PDF এবং Excel উভয় ফরম্যাটে</strong> নিচে স্থায়ী ব্যাকআপ হিসেবে সংযুক্ত করে পাঠানো হলো।
+                </p>
+
+                <!-- Metric Highlights Grid -->
+                <table width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 20px;">
+                  <tr>
+                    <td width="48%" style="padding: 12px 14px; background-color: #f1f5f9; border-radius: 10px; border: 1px solid #e2e8f0;">
+                      <span style="font-size: 10.5px; font-weight: bold; color: #64748b; text-transform: uppercase;">মোট পেশেন্ট এন্ট্রি</span>
+                      <div style="font-size: 18px; font-weight: bold; color: #0f172a; margin-top: 4px;">${totalEntries} টি</div>
+                    </td>
+                    <td width="4%"></td>
+                    <td width="48%" style="padding: 12px 14px; background-color: #e0f2fe; border-radius: 10px; border: 1px solid #bae6fd;">
+                      <span style="font-size: 10.5px; font-weight: bold; color: #0369a1; text-transform: uppercase;">ইউনিক পেশেন্ট</span>
+                      <div style="font-size: 18px; font-weight: bold; color: #0284c7; margin-top: 4px;">${uniquePatients} জন</div>
+                    </td>
+                  </tr>
+                  <tr><td height="10" colspan="3"></td></tr>
+                  <tr>
+                    <td width="48%" style="padding: 12px 14px; background-color: #dcfce7; border-radius: 10px; border: 1px solid #bbf7d0;">
+                      <span style="font-size: 10.5px; font-weight: bold; color: #166534; text-transform: uppercase;">মোট অ্যামাউন্ট (Remark)</span>
+                      <div style="font-size: 18px; font-weight: bold; color: #16a34a; margin-top: 4px;">Tk. ${totalAmount.toLocaleString()}</div>
+                    </td>
+                    <td width="4%"></td>
+                    <td width="48%" style="padding: 12px 14px; background-color: #fef3c7; border-radius: 10px; border: 1px solid #fde68a;">
+                      <span style="font-size: 10.5px; font-weight: bold; color: #92400e; text-transform: uppercase;">স্ট্যাটাস</span>
+                      <div style="font-size: 14px; font-weight: bold; color: #b45309; margin-top: 4px;">Archived & Closed</div>
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Attachments Box -->
+                <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; margin-bottom: 20px;">
+                  <p style="margin: 0 0 8px; font-size: 11.5px; font-weight: bold; color: #475569; text-transform: uppercase;">
+                    📎 সংযুক্ত আজীবনের ব্যাকআপ ফাইল (Attached Lifetime Files):
+                  </p>
+                  <p style="margin: 4px 0; font-size: 12.5px; color: #1e293b;">
+                    📄 <strong>1. Lifetime Printable PDF:</strong> <code>OverDuty_Complete_Lifetime_Records_${safeStaffSlug}.pdf</code>
+                  </p>
+                  <p style="margin: 4px 0; font-size: 12.5px; color: #1e293b;">
+                    📊 <strong>2. Lifetime Excel Spreadsheet:</strong> <code>OverDuty_Complete_Lifetime_Records_${safeStaffSlug}.xlsx</code>
+                  </p>
+                </div>
+
+                <p style="font-size: 12.5px; line-height: 1.5; color: #64748b; margin-top: 10px;">
+                  ধন্যবাদ আপনার নিরলস সেবা ও অবদানের জন্য। এই ফাইলগুলো ভবিষ্যতে আপনার যেকোনো প্রাতিষ্ঠানিক প্রয়োজন বা প্রমাণ হিসেবে ব্যবহার করতে পারবেন।
+                </p>
+              </div>
+
+              <!-- Footer -->
+              <div style="background: #f8fafc; padding: 14px 28px; text-align: center; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8;">
+                © ${new Date().getFullYear()} ${hospitalName}. All rights reserved.
+              </div>
+            </div>
+          </body>
+          </html>
+        `;
+
+        await dispatchEmail({
+          to: targetRecipient,
+          subject: `📦 [সম্পূর্ণ ডাটা ব্যাকআপ] আপনার সকল পেশেন্ট রেকর্ড ও ডিউটি ফাইল — ${hospitalName}`,
+          html: farewellHtml,
+          attachments,
+        });
+        console.log(`[User Delete Backup] Full lifetime record backup dispatched to deleted user: ${targetRecipient}`);
+      } catch (eUserBackup) {
+        console.error('[User Delete Backup Error] Failed to send archive to user:', eUserBackup.message);
+      }
+    }
+
+    // 3. Delete user from database
     await User.findByIdAndDelete(req.params.id);
 
-    // Dispatch security deletion notification to Super Admin (prottoybiswas575358@gmail.com)
+    // 4. Dispatch security deletion notification to Super Admin (prottoybiswas575358@gmail.com)
     try {
       const deleteNotifHtml = `
         <!DOCTYPE html>
@@ -887,14 +1047,15 @@ export const verifyAndDeleteUser = async (req, res, next) => {
               <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.95;">OverDuty Pro — Account Deletion Alert</p>
             </div>
             <div style="padding: 24px;">
-              <h2 style="font-size: 15px; color: #0f172a; margin-top: 0;">অ্যাকাউন্ট ডিলিট সম্পন্ন</h2>
+              <h2 style="font-size: 15px; color: #0f172a; margin-top: 0;">অ্যাকাউন্ট ডিলিট ও ব্যাকআপ সম্পন্ন</h2>
               <p style="font-size: 13px; line-height: 1.6; color: #475569;">
-                ইমেইল ওটিপি কোড ভেরিফিকেশনের মাধ্যমে নিচের ইউজার প্রোফাইলটি সফলভাবে মুছে ফেলা হয়েছে:
+                ইমেইল ওটিপি কোড ভেরিফিকেশনের মাধ্যমে নিচের ইউজার প্রোফাইলটি সফলভাবে মুছে ফেলা হয়েছে এবং ইউজারের ইমেইলে (${targetRecipient}) তার সকল রেকর্ড PDF ও Excel আকারে ব্যাকআপ পাঠিয়ে দেওয়া হয়েছে:
               </p>
               <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 14px; margin: 16px 0; font-size: 13px; line-height: 1.8;">
                 <div><strong>মুছে ফেলা ইউজারের নাম:</strong> ${user.name}</div>
                 <div><strong>ইউজারনেম:</strong> @${user.username}</div>
                 <div><strong>ইমেইল:</strong> ${user.email}</div>
+                <div><strong>মোট পেশেন্ট রেকর্ড:</strong> ${totalEntries} টি (Tk. ${totalAmount.toLocaleString()})</div>
                 <div><strong>ডিলিটের সময়:</strong> ${new Date().toLocaleString()}</div>
               </div>
             </div>
@@ -913,7 +1074,7 @@ export const verifyAndDeleteUser = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: `ইউজার "${user.name}" এর অ্যাকাউন্ট ওটিপি ভেরিফিকেশনপূর্বক সফলভাবে মুছে ফেলা হয়েছে।`,
+      message: `ইউজার "${user.name}" এর অ্যাকাউন্ট ওটিপি ভেরিফিকেশনপূর্বক সফলভাবে মুছে ফেলা হয়েছে এবং তার সমস্ত ঐতিহাসিক ডাটা (${totalEntries} টি রেকর্ড) PDF ও Excel ফাইলসহ ইউজারের ইমেইলে ব্যাকআপ পাঠানো হয়েছে।`,
     });
   } catch (error) {
     next(error);
