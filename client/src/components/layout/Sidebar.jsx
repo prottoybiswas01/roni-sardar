@@ -8,6 +8,7 @@ import {
   Settings,
   Users,
   Database,
+  Trash2,
   Activity,
   ChevronLeft,
   ChevronRight,
@@ -51,6 +52,11 @@ export const Sidebar = ({
       label: 'Backup & Recovery',
       icon: Database,
       badge: 'AUTO',
+    },
+    {
+      id: 'recycle-bin',
+      label: 'Recycle Bin (বিন)',
+      icon: Trash2,
     },
     {
       id: 'settings',

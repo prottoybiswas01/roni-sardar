@@ -2,7 +2,7 @@ import Record from '../models/Record.js';
 
 // Helper: Calculate next SL number for a given month, year, and specific user
 const getNextSequenceNumber = async (month, year, userId = null) => {
-  const query = { month, year };
+  const query = { month, year, isDeleted: { $ne: true } };
   if (userId) {
     query.createdBy = userId;
   }
@@ -45,7 +45,7 @@ export const getNextSl = async (req, res, next) => {
   }
 };
 
-// @desc    Get all records with filtering, search, pagination, and sorting
+// @desc    Get all active records with filtering, search, pagination, and sorting (Excludes soft-deleted records)
 // @route   GET /api/records
 // @access  Private
 export const getRecords = async (req, res, next) => {
@@ -62,7 +62,7 @@ export const getRecords = async (req, res, next) => {
       userId,
     } = req.query;
 
-    const query = {};
+    const query = { isDeleted: { $ne: true } };
 
     // Strict user data isolation:
     // By default, EVERY user (including Super Admin) ONLY sees their own records.
@@ -143,12 +143,12 @@ export const getRecords = async (req, res, next) => {
   }
 };
 
-// @desc    Get single record by ID
+// @desc    Get single record by ID (Active only)
 // @route   GET /api/records/:id
 // @access  Private
 export const getRecordById = async (req, res, next) => {
   try {
-    const record = await Record.findById(req.params.id).populate('createdBy', 'name email username');
+    const record = await Record.findOne({ _id: req.params.id, isDeleted: { $ne: true } }).populate('createdBy', 'name email username');
 
     if (!record) {
       return res.status(404).json({
@@ -226,6 +226,7 @@ export const createRecord = async (req, res, next) => {
       month: recordMonth,
       year: recordYear,
       createdBy: userId,
+      isDeleted: false,
     });
 
     res.status(201).json({
@@ -243,7 +244,7 @@ export const createRecord = async (req, res, next) => {
 // @access  Private
 export const updateRecord = async (req, res, next) => {
   try {
-    let record = await Record.findById(req.params.id);
+    let record = await Record.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
 
     if (!record) {
       return res.status(404).json({
@@ -318,10 +319,177 @@ export const updateRecord = async (req, res, next) => {
   }
 };
 
-// @desc    Delete a record
+// @desc    Soft Delete a record (Move to Recycle Bin)
 // @route   DELETE /api/records/:id
 // @access  Private
 export const deleteRecord = async (req, res, next) => {
+  try {
+    const record = await Record.findById(req.params.id);
+
+    if (!record || record.isDeleted) {
+      return res.status(404).json({
+        success: false,
+        message: 'Record not found',
+      });
+    }
+
+    // Ownership check: regular users can only delete their own record unless superadmin / admin
+    if (
+      req.user &&
+      req.user.role !== 'superadmin' &&
+      req.user.role !== 'admin' &&
+      String(record.createdBy) !== String(req.user._id)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to delete this record',
+      });
+    }
+
+    // Soft delete: flag record as deleted and timestamp it
+    record.isDeleted = true;
+    record.deletedAt = new Date();
+    record.deletedBy = req.user ? req.user._id : null;
+    await record.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Record moved to Recycle Bin (বিন এ পাঠানো হয়েছে)',
+      data: { id: req.params.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get soft-deleted records in Recycle Bin
+// @route   GET /api/records/bin
+// @access  Private
+export const getBinRecords = async (req, res, next) => {
+  try {
+    const {
+      search,
+      month,
+      year,
+      page = 1,
+      limit = 50,
+      userId,
+    } = req.query;
+
+    const query = { isDeleted: true };
+
+    // Super Admin / Admin can filter by specific user or view all
+    if (req.user && (req.user.role === 'superadmin' || req.user.role === 'admin') && userId) {
+      if (userId === 'all') {
+        // View all soft deleted records
+      } else if (userId !== 'me') {
+        query.createdBy = userId;
+      } else {
+        query.createdBy = req.user._id;
+      }
+    } else if (req.user && req.user.role === 'superadmin') {
+      // Super Admin default: show all soft-deleted records unless explicitly scoped to 'me'
+      if (userId === 'me') {
+        query.createdBy = req.user._id;
+      }
+    } else {
+      // Regular staff: strictly only see their own deleted records
+      query.createdBy = req.user ? req.user._id : null;
+    }
+
+    if (month && Number(month) >= 1 && Number(month) <= 12) {
+      query.month = Number(month);
+    }
+    if (year && Number(year) > 1900) {
+      query.year = Number(year);
+    }
+
+    if (search && search.trim() !== '') {
+      const searchTerm = search.trim();
+      query.$or = [
+        { patientId: { $regex: searchTerm, $options: 'i' } },
+        { patientName: { $regex: searchTerm, $options: 'i' } },
+        { remark: { $regex: searchTerm, $options: 'i' } },
+      ];
+    }
+
+    const pageNum = Math.max(1, parseInt(page, 10));
+    const limitNum = Math.min(500, Math.max(1, parseInt(limit, 10)));
+    const skip = (pageNum - 1) * limitNum;
+
+    const [records, total] = await Promise.all([
+      Record.find(query)
+        .select('sl patientId patientName date time remark month year createdBy deletedAt deletedBy createdAt')
+        .sort({ deletedAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .populate('createdBy', 'name email username')
+        .populate('deletedBy', 'name email username')
+        .lean(),
+      Record.countDocuments(query),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: records,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Restore a soft-deleted record from Recycle Bin
+// @route   PUT /api/records/bin/:id/restore
+// @access  Private
+export const restoreRecord = async (req, res, next) => {
+  try {
+    const record = await Record.findById(req.params.id);
+
+    if (!record || !record.isDeleted) {
+      return res.status(404).json({
+        success: false,
+        message: 'Deleted record not found in Recycle Bin',
+      });
+    }
+
+    // Ownership check: regular users can only restore their own records unless superadmin/admin
+    if (
+      req.user &&
+      req.user.role !== 'superadmin' &&
+      req.user.role !== 'admin' &&
+      String(record.createdBy) !== String(req.user._id)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to restore this record',
+      });
+    }
+
+    record.isDeleted = false;
+    record.deletedAt = null;
+    record.deletedBy = null;
+    await record.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Patient Record (${record.patientName} - ID: ${record.patientId}) restored successfully!`,
+      data: record,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Permanently delete a record from Recycle Bin (Hard Delete)
+// @route   DELETE /api/records/bin/:id/permanent
+// @access  Private/SuperAdmin
+export const permanentDeleteRecord = async (req, res, next) => {
   try {
     const record = await Record.findById(req.params.id);
 
@@ -332,15 +500,11 @@ export const deleteRecord = async (req, res, next) => {
       });
     }
 
-    // Ownership check: users can only delete their own record unless superadmin
-    if (
-      req.user &&
-      req.user.role !== 'superadmin' &&
-      String(record.createdBy) !== String(req.user._id)
-    ) {
+    // Strictly enforce superadmin check
+    if (!req.user || req.user.role !== 'superadmin') {
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to delete this record',
+        message: 'Permission denied: Only Super Administrator can permanently delete records.',
       });
     }
 
@@ -348,7 +512,7 @@ export const deleteRecord = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: 'Record deleted successfully',
+      message: 'Record permanently deleted from database (চিরতরে মুছে ফেলা হয়েছে)',
       data: { id: req.params.id },
     });
   } catch (error) {
@@ -356,7 +520,32 @@ export const deleteRecord = async (req, res, next) => {
   }
 };
 
-// @desc    Check for possible duplicate record
+// @desc    Empty entire Recycle Bin (Hard Delete all soft-deleted records)
+// @route   DELETE /api/records/bin/empty
+// @access  Private/SuperAdmin
+export const emptyBin = async (req, res, next) => {
+  try {
+    // Strictly enforce superadmin check
+    if (!req.user || req.user.role !== 'superadmin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Permission denied: Only Super Administrator can empty the Recycle Bin.',
+      });
+    }
+
+    const { deletedCount } = await Record.deleteMany({ isDeleted: true });
+
+    res.status(200).json({
+      success: true,
+      message: `Recycle Bin emptied successfully! (${deletedCount} records permanently deleted).`,
+      deletedCount,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Check for possible duplicate record (Excludes soft-deleted records)
 // @route   GET /api/records/check-duplicate
 // @access  Private
 export const checkDuplicate = async (req, res, next) => {
@@ -384,6 +573,7 @@ export const checkDuplicate = async (req, res, next) => {
     const query = {
       patientId: String(patientId).trim(),
       date: { $gte: startOfDay, $lte: endOfDay },
+      isDeleted: { $ne: true },
     };
 
     // Duplicate check is scoped to the user's own records
@@ -417,7 +607,7 @@ export const checkDuplicate = async (req, res, next) => {
   }
 };
 
-// @desc    Get dashboard statistics
+// @desc    Get dashboard statistics (Active records only)
 // @route   GET /api/records/dashboard-stats
 // @access  Private
 export const getDashboardStats = async (req, res, next) => {
@@ -432,9 +622,8 @@ export const getDashboardStats = async (req, res, next) => {
     const todayStart = new Date(now.setHours(0, 0, 0, 0));
     const todayEnd = new Date(now.setHours(23, 59, 59, 999));
 
-    // Base query scoping to user:
-    // By default, EVERY user (including Super Admin) ONLY sees their own dashboard statistics.
-    const baseQuery = {};
+    // Base query scoping to user and active records
+    const baseQuery = { isDeleted: { $ne: true } };
     if (req.user && (req.user.role === 'superadmin' || req.user.role === 'admin') && userId) {
       if (userId === 'all') {
         // Combined statistics
@@ -482,3 +671,4 @@ export const getDashboardStats = async (req, res, next) => {
     next(error);
   }
 };
+

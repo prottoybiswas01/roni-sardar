@@ -62,4 +62,35 @@ export const recordsApi = {
     const queryString = query.toString() ? `?${query.toString()}` : '';
     return await apiClient(`/records/next-sl${queryString}`);
   },
+
+  // Recycle Bin / Trash API
+  getBinRecords: async (params = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== '') {
+        query.append(key, val);
+      }
+    });
+    const queryString = query.toString() ? `?${query.toString()}` : '';
+    return await apiClient(`/records/bin${queryString}`);
+  },
+
+  restoreRecord: async (id) => {
+    return await apiClient(`/records/bin/${id}/restore`, {
+      method: 'PUT',
+    });
+  },
+
+  permanentDeleteRecord: async (id) => {
+    return await apiClient(`/records/bin/${id}/permanent`, {
+      method: 'DELETE',
+    });
+  },
+
+  emptyBin: async () => {
+    return await apiClient('/records/bin/empty', {
+      method: 'DELETE',
+    });
+  },
 };
+

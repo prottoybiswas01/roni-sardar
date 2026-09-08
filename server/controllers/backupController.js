@@ -24,7 +24,7 @@ export const getBackupStatus = async (req, res, next) => {
   try {
     const [settings, totalRecords, totalUsers] = await Promise.all([
       Settings.findOne(),
-      Record.countDocuments(),
+      Record.countDocuments({ isDeleted: { $ne: true } }),
       User.countDocuments(),
     ]);
 

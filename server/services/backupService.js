@@ -23,7 +23,7 @@ if (!fs.existsSync(BACKUPS_DIR)) {
 // 1. Generate Full Database Snapshot in JSON
 export const generateFullBackupData = async () => {
   const [records, users, settings] = await Promise.all([
-    Record.find().sort({ date: 1, sl: 1 }).lean(),
+    Record.find({ isDeleted: { $ne: true } }).sort({ date: 1, sl: 1 }).lean(),
     User.find().select('+password').lean(),
     Settings.findOne().lean(),
   ]);
@@ -49,7 +49,7 @@ export const generateFullBackupData = async () => {
 export const generateUserBackupData = async (userId) => {
   const [user, records, settings] = await Promise.all([
     User.findById(userId).lean(),
-    Record.find({ createdBy: userId }).sort({ date: 1, sl: 1 }).lean(),
+    Record.find({ createdBy: userId, isDeleted: { $ne: true } }).sort({ date: 1, sl: 1 }).lean(),
     Settings.findOne().lean(),
   ]);
 
@@ -345,7 +345,7 @@ export const sendUserBackupEmail = async (
   const hospitalName = settings.hospitalName || 'Ad-din Akij Medical College Hospital';
   const location = settings.location || 'Clinical Wards';
 
-  const filter = { createdBy: userId };
+  const filter = { createdBy: userId, isDeleted: { $ne: true } };
   if (targetMonth && targetMonth !== 'all') {
     filter.month = Number(targetMonth);
   }
@@ -540,7 +540,7 @@ export const executeEmailBackup = async (customRecipient = null) => {
 
   const [fullBackup, allRecords] = await Promise.all([
     generateFullBackupData(),
-    Record.find().sort({ date: 1, sl: 1 }).lean(),
+    Record.find({ isDeleted: { $ne: true } }).sort({ date: 1, sl: 1 }).lean(),
   ]);
 
   const dateStr = new Date().toISOString().split('T')[0];

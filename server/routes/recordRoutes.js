@@ -5,6 +5,10 @@ import {
   createRecord,
   updateRecord,
   deleteRecord,
+  getBinRecords,
+  restoreRecord,
+  permanentDeleteRecord,
+  emptyBin,
   checkDuplicate,
   getDashboardStats,
   getNextSl,
@@ -15,7 +19,13 @@ const router = express.Router();
 
 router.use(protect); // All record operations require authentication
 
-router.get('/', getRecords);
+// Recycle Bin Routes (Must be declared before `/:id` to avoid route collision)
+router.get('/bin', getBinRecords);
+router.delete('/bin/empty', authorize('superadmin'), emptyBin);
+router.put('/bin/:id/restore', restoreRecord);
+router.delete('/bin/:id/permanent', authorize('superadmin'), permanentDeleteRecord);
+
+// Active Records & Utility Routes
 router.get('/dashboard-stats', getDashboardStats);
 router.get('/check-duplicate', checkDuplicate);
 router.get('/next-sl', getNextSl);
@@ -25,3 +35,4 @@ router.put('/:id', updateRecord);
 router.delete('/:id', deleteRecord);
 
 export default router;
+

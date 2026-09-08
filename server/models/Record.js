@@ -51,6 +51,21 @@ const recordSchema = new mongoose.Schema(
       ref: 'User',
       required: false,
     },
+    // Soft Delete / Recycle Bin Architecture
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -58,13 +73,14 @@ const recordSchema = new mongoose.Schema(
 );
 
 // High performance compound indexes for instant queries (<10ms)
-recordSchema.index({ createdBy: 1, month: 1, year: 1, date: 1, sl: 1 });
-recordSchema.index({ createdBy: 1, month: 1, year: 1 });
-recordSchema.index({ createdBy: 1, year: 1 });
-recordSchema.index({ createdBy: 1, date: -1 });
-recordSchema.index({ createdBy: 1, patientId: 1, date: 1 });
-recordSchema.index({ month: 1, year: 1, date: 1, sl: 1 });
-recordSchema.index({ patientId: 1, date: 1 });
+recordSchema.index({ isDeleted: 1, createdBy: 1, month: 1, year: 1, date: 1, sl: 1 });
+recordSchema.index({ isDeleted: 1, createdBy: 1, month: 1, year: 1 });
+recordSchema.index({ isDeleted: 1, createdBy: 1, year: 1 });
+recordSchema.index({ isDeleted: 1, createdBy: 1, date: -1 });
+recordSchema.index({ isDeleted: 1, createdBy: 1, patientId: 1, date: 1 });
+recordSchema.index({ isDeleted: 1, month: 1, year: 1, date: 1, sl: 1 });
+recordSchema.index({ isDeleted: 1, patientId: 1, date: 1 });
+recordSchema.index({ isDeleted: 1, deletedAt: -1 });
 
 const Record = mongoose.model('Record', recordSchema);
 export default Record;
