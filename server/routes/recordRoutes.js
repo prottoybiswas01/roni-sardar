@@ -29,6 +29,7 @@ router.delete('/bin/:id/permanent', authorize('superadmin'), permanentDeleteReco
 router.get('/dashboard-stats', getDashboardStats);
 router.get('/check-duplicate', checkDuplicate);
 router.get('/next-sl', getNextSl);
+router.get('/', getRecords);
 router.get('/:id', getRecordById);
 router.post('/', createRecord);
 router.put('/:id', updateRecord);

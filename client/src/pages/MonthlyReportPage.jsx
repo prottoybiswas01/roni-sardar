@@ -64,7 +64,7 @@ export const MonthlyReportPage = ({ onAddNew }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedMonth, selectedYear, selectedUserId, isSuperAdmin, toast]);
+  }, [selectedMonth, selectedYear, selectedUserId, isSuperAdmin]);
 
   useEffect(() => {
     fetchReportData();
