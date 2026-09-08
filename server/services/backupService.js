@@ -375,13 +375,18 @@ export const sendUserBackupEmail = async (
     : 'Cumulative All-Time Records';
 
   // 1. Generate Formatted Excel (.xlsx) buffer with Ad-din headers & One Call banner
-  const excelBuffer = generateMonthlyRecordsExcelBuffer({
-    records: userRecords,
-    hospitalName,
-    location,
-    month: targetMonth,
-    year: targetYear,
-  });
+  let excelBuffer = null;
+  try {
+    excelBuffer = await generateMonthlyRecordsExcelBuffer({
+      records: userRecords,
+      hospitalName,
+      location,
+      month: targetMonth,
+      year: targetYear,
+    });
+  } catch (excelErr) {
+    console.error('[Backup Excel Gen Error]:', excelErr.message);
+  }
 
   // 2. Generate Professional PDF Statement Buffer
   let pdfBuffer = null;
@@ -542,13 +547,18 @@ export const executeEmailBackup = async (customRecipient = null) => {
   const nowDisplay = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   const hospitalName = settings?.hospitalName || 'Ad-din Akij Medical College Hospital';
 
-  const excelBuffer = generateMonthlyRecordsExcelBuffer({
-    records: allRecords,
-    hospitalName,
-    location: 'All Departments / Wards',
-    month: 'all',
-    year: new Date().getFullYear(),
-  });
+  let excelBuffer = null;
+  try {
+    excelBuffer = await generateMonthlyRecordsExcelBuffer({
+      records: allRecords,
+      hospitalName,
+      location: 'All Departments / Wards',
+      month: 'all',
+      year: new Date().getFullYear(),
+    });
+  } catch (excelErr) {
+    console.error('[Master Backup Excel Gen Error]:', excelErr.message);
+  }
   const jsonContent = JSON.stringify(fullBackup, null, 2);
 
   const html = `
@@ -611,7 +621,7 @@ export const executeEmailBackup = async (customRecipient = null) => {
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       content: excelBuffer,
     },
-  ];
+  ].filter((a) => a.content);
 
   await dispatchEmail({
     settings,
