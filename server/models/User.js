@@ -102,5 +102,20 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
+// Automatic Mirroring to Secondary MongoDB Cluster
+userSchema.post('save', function (doc) {
+  import('../services/dbMirrorService.js')
+    .then(({ mirrorUserToSecondary }) => mirrorUserToSecondary(doc, 'save'))
+    .catch(() => {});
+});
+
+userSchema.post('findOneAndDelete', function (doc) {
+  if (doc) {
+    import('../services/dbMirrorService.js')
+      .then(({ mirrorUserToSecondary }) => mirrorUserToSecondary(doc, 'delete'))
+      .catch(() => {});
+  }
+});
+
 const User = mongoose.model('User', userSchema);
 export default User;

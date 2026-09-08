@@ -100,5 +100,12 @@ const settingsSchema = new mongoose.Schema(
   }
 );
 
+// Automatic Mirroring to Secondary MongoDB Cluster
+settingsSchema.post('save', function (doc) {
+  import('../services/dbMirrorService.js')
+    .then(({ mirrorSettingsToSecondary }) => mirrorSettingsToSecondary(doc))
+    .catch(() => {});
+});
+
 const Settings = mongoose.model('Settings', settingsSchema);
 export default Settings;

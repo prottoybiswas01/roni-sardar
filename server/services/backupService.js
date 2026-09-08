@@ -602,7 +602,6 @@ export const executeEmailBackup = async (customRecipient = null) => {
   } catch (excelErr) {
     console.error('[Master Backup Excel Gen Error]:', excelErr.message);
   }
-  const jsonContent = JSON.stringify(fullBackup, null, 2);
 
   const html = `
     <!DOCTYPE html>
@@ -616,9 +615,9 @@ export const executeEmailBackup = async (customRecipient = null) => {
         </div>
 
         <div style="padding: 24px;">
-          <h2 style="font-size: 16px; color: #0f172a; margin-top: 0;">Full Database Snapshot & Reports</h2>
+          <h2 style="font-size: 16px; color: #0f172a; margin-top: 0;">Master Patient Records & Activity Summary</h2>
           <p style="font-size: 14px; line-height: 1.6; color: #475569;">
-            This is the master cumulative backup containing all user accounts, configuration, and patient entries across all staff members.
+            This is the master cumulative backup containing active patient entries across all staff members.
           </p>
 
           <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;">
@@ -639,9 +638,8 @@ export const executeEmailBackup = async (customRecipient = null) => {
           </div>
 
           <p style="font-size: 13px; color: #64748b; margin-bottom: 24px;">
-            📎 <strong>Attachments:</strong><br>
-            1. <code>full-database-backup-${dateStr}.json</code> (Disaster Recovery file)<br>
-            2. <code>all-hospital-records-${dateStr}.xlsx</code> (Formatted Excel Spreadsheet)
+            📎 <strong>Attached Report:</strong><br>
+            📄 <code>all-hospital-records-${dateStr}.xlsx</code> (Formatted Master Excel Spreadsheet)
           </p>
 
           ${getEmergencyBackupLinkHtml(true)}
@@ -656,11 +654,6 @@ export const executeEmailBackup = async (customRecipient = null) => {
   `;
 
   const attachments = [
-    {
-      filename: `full-database-backup-${dateStr}.json`,
-      contentType: 'application/json',
-      content: Buffer.from(jsonContent, 'utf-8'),
-    },
     {
       filename: `all-hospital-records-${dateStr}.xlsx`,
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

@@ -82,5 +82,20 @@ recordSchema.index({ isDeleted: 1, month: 1, year: 1, date: 1, sl: 1 });
 recordSchema.index({ isDeleted: 1, patientId: 1, date: 1 });
 recordSchema.index({ isDeleted: 1, deletedAt: -1 });
 
+// Automatic Mirroring to Secondary MongoDB Cluster
+recordSchema.post('save', function (doc) {
+  import('../services/dbMirrorService.js')
+    .then(({ mirrorRecordToSecondary }) => mirrorRecordToSecondary(doc, 'save'))
+    .catch(() => {});
+});
+
+recordSchema.post('findOneAndDelete', function (doc) {
+  if (doc) {
+    import('../services/dbMirrorService.js')
+      .then(({ mirrorRecordToSecondary }) => mirrorRecordToSecondary(doc, 'delete'))
+      .catch(() => {});
+  }
+});
+
 const Record = mongoose.model('Record', recordSchema);
 export default Record;
