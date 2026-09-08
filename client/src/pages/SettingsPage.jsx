@@ -389,8 +389,28 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
     }
   };
 
+  const isUserProtected = (userObj) => {
+    if (!userObj) return false;
+    const email = (userObj.email || '').toLowerCase().trim();
+    const username = (userObj.username || '').toLowerCase().trim();
+    const name = (userObj.name || '').toLowerCase().trim();
+    return (
+      email === 'admin@hospital.com' ||
+      username === 'admin' ||
+      userObj.role === 'superadmin' ||
+      email === 'ronisardar445@gmail.com' ||
+      username === 'roni' ||
+      name === 'roni sardar'
+    );
+  };
+
   const handlePauseUser = async (userId, userName) => {
     try {
+      const targetUser = users.find((u) => u._id === userId);
+      if (targetUser && isUserProtected(targetUser)) {
+        toast.error('🛡️ এই অ্যাকাউন্টটি স্থায়ীভাবে সুরক্ষিত। এটি পজ বা স্থগিত করা যাবে না।');
+        return;
+      }
       setActionLoadingId(userId);
       await authApi.updateUser(userId, { status: 'paused' });
       toast.warning(`"${userName}" এর অ্যাকাউন্ট সাময়িকভাবে স্থগিত (Paused) করা হয়েছে। ডাটা এন্ট্রি বন্ধ থাকবে।`);
@@ -416,6 +436,11 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
   };
 
   const handleToggleUserStatus = async (userId, currentStatus) => {
+    const targetUser = users.find((u) => u._id === userId);
+    if (targetUser && isUserProtected(targetUser)) {
+      toast.error('🛡️ এই অ্যাকাউন্টটি স্থায়ীভাবে সুরক্ষিত। এটি নিষ্ক্রিয় করা যাবে না।');
+      return;
+    }
     const nextStatus = currentStatus === 'active' ? 'inactive' : 'active';
     try {
       setActionLoadingId(userId);
@@ -431,6 +456,10 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
 
   // Super Admin: Initiate User Profile Deletion (Sends 6-digit OTP to target user's email)
   const handleInitiateDeleteUser = async (userObj) => {
+    if (isUserProtected(userObj)) {
+      toast.error('🛡️ এই অ্যাকাউন্টটি স্থায়ীভাবে সুরক্ষিত (Protected Master Profile)। ইউজারের নিজস্ব আবেদন ছাড়া এটি মুছে ফেলা সম্পূর্ণ নিষিদ্ধ।');
+      return;
+    }
     setDeleteTargetUser(userObj);
     setDeleteOtpValue('');
     try {
@@ -717,6 +746,11 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                   <tbody className="divide-y divide-slate-100">
                     {users.map((u) => {
                       const isMainAdmin = u.username === 'admin' || u.email === 'admin@hospital.com' || u.role === 'superadmin';
+                      const isProtectedMaster =
+                        u.email?.toLowerCase() === 'ronisardar445@gmail.com' ||
+                        u.username?.toLowerCase() === 'roni' ||
+                        u.name?.toLowerCase() === 'roni sardar';
+                      const isProtected = isMainAdmin || isProtectedMaster;
                       const isLoading = actionLoadingId === u._id;
 
                       return (
@@ -728,6 +762,14 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                               {isMainAdmin && (
                                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 font-bold border border-amber-200">
                                   <Crown className="w-2.5 h-2.5 text-amber-600" /> Super Admin
+                                </span>
+                              )}
+                              {!isMainAdmin && isProtectedMaster && (
+                                <span
+                                  className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-bold border border-emerald-300 shadow-sm"
+                                  title="স্থায়ীভাবে সুরক্ষিত মাস্টার প্রোফাইল — সুপার অ্যাডমিন কর্তৃক ডিলিট বা ডিঅ্যাক্টিভেট করা যাবে না"
+                                >
+                                  <ShieldCheck className="w-3 h-3 text-emerald-600" /> Protected Master
                                 </span>
                               )}
                             </div>
@@ -844,7 +886,7 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                               )}
 
                               {/* Pause / Resume Button for Super Admin */}
-                              {!isMainAdmin && u.status === 'active' && (
+                              {!isProtected && u.status === 'active' && (
                                 <button
                                   type="button"
                                   disabled={isLoading || actionLoadingId === u._id}
@@ -857,7 +899,7 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                                 </button>
                               )}
 
-                              {!isMainAdmin && (u.status === 'paused' || u.status === 'suspended') && (
+                              {!isProtected && (u.status === 'paused' || u.status === 'suspended') && (
                                 <button
                                   type="button"
                                   disabled={isLoading || actionLoadingId === u._id}
@@ -871,7 +913,7 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                               )}
 
                               {/* Toggle Activate / Deactivate */}
-                              {!isMainAdmin && u.status !== 'pending' && (
+                              {!isProtected && u.status !== 'pending' && (
                                 <button
                                   type="button"
                                   disabled={isLoading || actionLoadingId === u._id}
@@ -888,7 +930,7 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                               )}
 
                               {/* Delete Action (Super Admin with Email OTP Verification) */}
-                              {!isMainAdmin && isSuperAdmin && (
+                              {!isProtected && isSuperAdmin && (
                                 <button
                                   type="button"
                                   disabled={isLoading || isSendingDeleteOtp}

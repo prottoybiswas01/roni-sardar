@@ -11,6 +11,36 @@ import {
 // Primary Super Administrator Email for 2FA and System Security Alerts
 export const PRIMARY_SUPERADMIN_EMAIL = 'prottoybiswas575358@gmail.com';
 
+// Helper: Check if account is protected (Super Admin or Protected Master Profile: Roni sardar)
+export const isProtectedUser = (user) => {
+  if (!user) return false;
+  const email = (user.email || '').toLowerCase().trim();
+  const username = (user.username || '').toLowerCase().trim().replace(/^@/, '');
+  const name = (user.name || '').toLowerCase().trim();
+
+  // Super Admin Accounts
+  if (
+    user.role === 'superadmin' ||
+    username === 'admin' ||
+    email === PRIMARY_SUPERADMIN_EMAIL ||
+    email === 'admin@hospital.com' ||
+    email === 'admin@hospital.local'
+  ) {
+    return true;
+  }
+
+  // Permanently Protected Master Profile: Roni sardar (ronisardar445@gmail.com / @roni)
+  if (
+    email === 'ronisardar445@gmail.com' ||
+    username === 'roni' ||
+    name === 'roni sardar'
+  ) {
+    return true;
+  }
+
+  return false;
+};
+
 // Helper: Mask email for privacy display (e.g. pr***8@gmail.com)
 const maskEmail = (email) => {
   if (!email || !email.includes('@')) return email;
@@ -49,13 +79,17 @@ export const register = async (req, res, next) => {
       });
     }
 
+    const trimmedName = name.trim();
     const trimmedEmail = email.trim().toLowerCase();
-    const cleanUsername = username ? username.trim().toLowerCase() : trimmedEmail.split('@')[0];
+    const cleanUsername = username ? username.trim().toLowerCase().replace(/^@/, '') : trimmedEmail.split('@')[0];
 
-    // Strictly prevent duplicate emails and usernames
-    const [emailExists, userExists] = await Promise.all([
+    // Strictly prevent duplicate emails, usernames, and full names
+    const [emailExists, userExists, nameExists] = await Promise.all([
       User.findOne({ email: trimmedEmail }),
       User.findOne({ username: cleanUsername }),
+      User.findOne({
+        name: { $regex: new RegExp(`^${trimmedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+      }),
     ]);
 
     if (emailExists) {
@@ -68,7 +102,14 @@ export const register = async (req, res, next) => {
     if (userExists) {
       return res.status(400).json({
         success: false,
-        message: 'এই ইউজারনেমটি অন্য কেউ ব্যবহার করছে। অনুগ্রহ করে অন্য ইউজারনেম নির্বাচন করুন। (This username is already taken)',
+        message: `এই ইউজারনেমটি (@${cleanUsername}) অন্য কেউ ব্যবহার করছে। একই ইউজারনেমে দ্বিতীয় অ্যাকাউন্ট তৈরি করা সম্ভব নয়। (This username is already taken)`,
+      });
+    }
+
+    if (nameExists) {
+      return res.status(400).json({
+        success: false,
+        message: `"${trimmedName}" নামে ইতোমধ্যে একটি অ্যাকাউন্ট বিদ্যমান। একই নামে দ্বিতীয় কোনো অ্যাকাউন্ট তৈরি করা যাবে না। (A user with this name already exists)`,
       });
     }
 
@@ -885,12 +926,12 @@ export const updateUser = async (req, res, next) => {
       });
     }
 
-    // Protect primary super admin from losing superadmin role or being deactivated / paused
-    if (user.username === 'admin' || user.email === 'admin@hospital.com' || user.role === 'superadmin') {
+    // Protect Super Admin and Master Profile (Roni sardar) from being deactivated, paused or suspended
+    if (isProtectedUser(user)) {
       if (status === 'inactive' || status === 'pending' || status === 'paused' || status === 'suspended') {
         return res.status(400).json({
           success: false,
-          message: 'The main Super Administrator account cannot be paused or deactivated',
+          message: '🛡️ এই অ্যাকাউন্টটি স্থায়ীভাবে সুরক্ষিত (Protected Account)। সুপার অ্যাডমিন কর্তৃক এই অ্যাকাউন্ট পজ, ডিঅ্যাক্টিভেট বা স্থগিত করা সম্ভব নয়। (This protected account cannot be paused or deactivated)',
         });
       }
     }
@@ -938,10 +979,10 @@ export const sendDeleteUserOtp = async (req, res, next) => {
       });
     }
 
-    if (user.username === 'admin' || user.email === 'admin@hospital.com' || user.role === 'superadmin') {
+    if (isProtectedUser(user)) {
       return res.status(400).json({
         success: false,
-        message: 'Super Administrator accounts cannot be deleted',
+        message: '🛡️ এই অ্যাকাউন্টটি স্থায়ীভাবে সুরক্ষিত (Protected Master Profile)। ইউজারের নিজস্ব প্রোফাইল অ্যাপ্লিকেশন ছাড়া সুপার অ্যাডমিন কর্তৃক এই অ্যাকাউন্ট মুছে ফেলা সম্পূর্ণ নিষিদ্ধ। (Protected accounts cannot be deleted by Super Admin)',
       });
     }
 
@@ -1025,10 +1066,10 @@ export const verifyAndDeleteUser = async (req, res, next) => {
       });
     }
 
-    if (user.username === 'admin' || user.email === 'admin@hospital.com' || user.role === 'superadmin') {
+    if (isProtectedUser(user)) {
       return res.status(400).json({
         success: false,
-        message: 'Super Administrator accounts cannot be deleted',
+        message: '🛡️ এই অ্যাকাউন্টটি স্থায়ীভাবে সুরক্ষিত (Protected Master Profile)। ইউজারের নিজস্ব প্রোফাইল অ্যাপ্লিকেশন ছাড়া সুপার অ্যাডমিন কর্তৃক এই অ্যাকাউন্ট মুছে ফেলা সম্পূর্ণ নিষিদ্ধ। (Protected accounts cannot be deleted by Super Admin)',
       });
     }
 
@@ -1270,6 +1311,14 @@ export const verifyAndDeleteUser = async (req, res, next) => {
 // @access  Private/SuperAdmin
 export const deleteUser = async (req, res, next) => {
   try {
+    const user = await User.findById(req.params.id);
+    if (user && isProtectedUser(user)) {
+      return res.status(400).json({
+        success: false,
+        message: '🛡️ এই অ্যাকাউন্টটি স্থায়ীভাবে সুরক্ষিত (Protected Master Profile)। এই অ্যাকাউন্ট ডিলিট করা সম্পূর্ণ নিষিদ্ধ।',
+      });
+    }
+
     return res.status(400).json({
       success: false,
       message: 'সিকিউরিটি সুরক্ষার জন্য ইউজারের ইমেইলে OTP পাঠিয়ে ভেরিফাই করে ডিলিট সম্পন্ন করুন। (Please use OTP verification to delete users)',
@@ -1349,6 +1398,22 @@ export const seedInitialAdmin = async () => {
       }
       await admin.save();
       console.log(`[Auth] Super Administrator synchronized: admin / admin123 (email: ${PRIMARY_SUPERADMIN_EMAIL}, role: superadmin)`);
+    }
+
+    // Ensure permanently protected Master Profile: Roni sardar (ronisardar445@gmail.com / @roni) is synchronized & active
+    let roniUser = await User.findOne({
+      $or: [
+        { email: 'ronisardar445@gmail.com' },
+        { username: 'roni' },
+      ],
+    });
+    if (roniUser) {
+      roniUser.status = 'active';
+      roniUser.emailVerified = true;
+      if (!roniUser.username) roniUser.username = 'roni';
+      if (!roniUser.name) roniUser.name = 'Roni sardar';
+      await roniUser.save();
+      console.log('[Auth] Protected Master Account synchronized: Roni sardar (ronisardar445@gmail.com)');
     }
 
     // Ensure system settings exist and default to Resend provider
