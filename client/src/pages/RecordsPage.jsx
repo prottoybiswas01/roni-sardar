@@ -67,11 +67,12 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedMonth, selectedYear, searchTerm, filterDate, selectedUserId, isSuperAdmin, toast]);
+  }, [selectedMonth, selectedYear, searchTerm, filterDate, selectedUserId, isSuperAdmin]);
 
   useEffect(() => {
     fetchRecords(1);
   }, [fetchRecords]);
+
 
   const handleClearFilters = () => {
     setSearchTerm('');

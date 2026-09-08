@@ -80,12 +80,11 @@ export const RecycleBinPage = () => {
         }
       } catch (err) {
         console.error('Failed to load bin records:', err);
-        toast.error('রিসাইকেল বিন লোড করা সম্ভব হয়নি: ' + err.message);
       } finally {
         setIsLoading(false);
       }
     },
-    [searchTerm, selectedUserId, isSuperAdmin, isAdmin, toast]
+    [searchTerm, selectedUserId, isSuperAdmin, isAdmin]
   );
 
   useEffect(() => {

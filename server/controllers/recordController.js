@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Record from '../models/Record.js';
 
 // Helper: Calculate next SL number for a given month, year, and specific user
@@ -148,6 +149,13 @@ export const getRecords = async (req, res, next) => {
 // @access  Private
 export const getRecordById = async (req, res, next) => {
   try {
+    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({
+        success: false,
+        message: 'Record not found',
+      });
+    }
+
     const record = await Record.findOne({ _id: req.params.id, isDeleted: { $ne: true } }).populate('createdBy', 'name email username');
 
     if (!record) {
