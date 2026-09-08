@@ -76,11 +76,6 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
 
-  // Password Reset Modal state
-  const [passwordResetUser, setPasswordResetUser] = useState(null);
-  const [newPasswordValue, setNewPasswordValue] = useState('');
-  const [isResettingPassword, setIsResettingPassword] = useState(false);
-
   // User Delete with Email OTP Security state
   const [deleteTargetUser, setDeleteTargetUser] = useState(null);
   const [deleteOtpValue, setDeleteOtpValue] = useState('');
@@ -224,17 +219,19 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
     if (!userId) return;
     try {
       setIsInspectLoading(true);
+      const m = Number(month) || new Date().getMonth() + 1;
+      const y = Number(year) || new Date().getFullYear();
       const [recordsRes, statsRes] = await Promise.all([
         recordsApi.getRecords({
           userId,
-          month,
-          year,
+          month: m,
+          year: y,
           limit: 500,
         }),
         recordsApi.getDashboardStats({
           userId,
-          month,
-          year,
+          month: m,
+          year: y,
         }),
       ]);
 
@@ -253,16 +250,18 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
 
   const handleOpenInspectModal = (user) => {
     setInspectingUser(user);
-    setInspectMonth(selectedMonth || new Date().getMonth() + 1);
-    setInspectYear(selectedYear || new Date().getFullYear());
-    fetchInspectedUserData(user._id, selectedMonth || new Date().getMonth() + 1, selectedYear || new Date().getFullYear());
+    const m = Number(selectedMonth || new Date().getMonth() + 1);
+    const y = Number(selectedYear || new Date().getFullYear());
+    setInspectMonth(m);
+    setInspectYear(y);
+    fetchInspectedUserData(user._id || user.id, m, y);
   };
 
   const handleInspectMonthChange = (val) => {
     const numMonth = Number(val);
     setInspectMonth(numMonth);
     if (inspectingUser) {
-      fetchInspectedUserData(inspectingUser._id, numMonth, inspectYear);
+      fetchInspectedUserData(inspectingUser._id || inspectingUser.id, numMonth, inspectYear);
     }
   };
 
@@ -270,7 +269,7 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
     const numYear = Number(val);
     setInspectYear(numYear);
     if (inspectingUser) {
-      fetchInspectedUserData(inspectingUser._id, inspectMonth, numYear);
+      fetchInspectedUserData(inspectingUser._id || inspectingUser.id, inspectMonth, numYear);
     }
   };
 
@@ -278,13 +277,14 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
     if (!inspectingUser) return;
     try {
       setIsExportingUserExcel(true);
+      const totalAmount = inspectRecords.reduce((sum, r) => sum + (Number(r.remark) || 0), 0);
       await exportMonthlyReportToExcel({
         records: inspectRecords,
         month: inspectMonth,
         year: inspectYear,
-        hospitalName: settings?.hospitalName || 'Hospital Over Duty',
-        location: `${settings?.location || 'General'} — Staff: ${inspectingUser?.name}`,
-        totalAmount: inspectStats?.monthlyTotalRemark || 0,
+        hospitalName: settings?.hospitalName || 'Ad-din Akij Medical College Hospital',
+        location: `${settings?.location || 'Boyra, Khulna'} — Staff: ${inspectingUser?.name}`,
+        totalAmount,
       });
       toast.success(`Excel spreadsheet exported for ${inspectingUser?.name}`);
     } catch (err) {
@@ -298,14 +298,15 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
     if (!inspectingUser) return;
     try {
       setIsExportingUserPdf(true);
+      const totalAmount = inspectRecords.reduce((sum, r) => sum + (Number(r.remark) || 0), 0);
       await exportMonthlyReportToPDF({
         records: inspectRecords,
         month: inspectMonth,
         year: inspectYear,
-        hospitalName: settings?.hospitalName || 'Hospital Over Duty',
-        location: `${settings?.location || 'General'} — Staff: ${inspectingUser?.name}`,
+        hospitalName: settings?.hospitalName || 'Ad-din Akij Medical College Hospital',
+        location: `${settings?.location || 'Boyra, Khulna'} — Staff: ${inspectingUser?.name}`,
         reportTitle: `${settings?.reportTitle || 'CLINICAL OVER DUTY'} (${inspectingUser?.name})`,
-        totalAmount: inspectStats?.monthlyTotalRemark || 0,
+        totalAmount,
       });
       toast.success(`PDF document exported for ${inspectingUser?.name}`);
     } catch (err) {
@@ -326,27 +327,6 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
       toast.error('Failed to update auto backup setting: ' + err.message);
     } finally {
       setActionLoadingId(null);
-    }
-  };
-
-  const handleResetPasswordSubmit = async (e) => {
-    e.preventDefault();
-    if (!passwordResetUser || !newPasswordValue.trim()) return;
-    if (newPasswordValue.trim().length < 6) {
-      toast.warning('Password must be at least 6 characters');
-      return;
-    }
-
-    try {
-      setIsResettingPassword(true);
-      await authApi.updateUser(passwordResetUser._id, { password: newPasswordValue.trim() });
-      toast.success(`Password for "${passwordResetUser.name}" has been reset successfully!`);
-      setPasswordResetUser(null);
-      setNewPasswordValue('');
-    } catch (err) {
-      toast.error('Password reset failed: ' + err.message);
-    } finally {
-      setIsResettingPassword(false);
     }
   };
 
@@ -857,20 +837,6 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                                 Profile
                               </button>
 
-                              {/* Reset Password Button */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setPasswordResetUser(u);
-                                  setNewPasswordValue('');
-                                }}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold shadow-subtle transition-all active:scale-95"
-                                title="Set a new password for this user"
-                              >
-                                <KeyRound className="w-3.5 h-3.5 text-slate-500" />
-                                Pass
-                              </button>
-
                               {/* One-click Approve & Activate button for Pending Users */}
                               {u.status === 'pending' && (
                                 <button
@@ -1188,61 +1154,6 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Password Reset Modal (Admin / Super Admin Only) */}
-      {passwordResetUser && (
-        <Modal
-          isOpen={Boolean(passwordResetUser)}
-          onClose={() => setPasswordResetUser(null)}
-          title={`Reset Password: ${passwordResetUser.name}`}
-          subtitle={`Username: @${passwordResetUser.username || passwordResetUser.email}`}
-          maxWidth="max-w-md"
-        >
-          <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                <KeyRound className="w-3.5 h-3.5 text-amber-600" />
-                New Password (Minimum 6 characters) <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={newPasswordValue}
-                onChange={(e) => setNewPasswordValue(e.target.value)}
-                placeholder="e.g. newPass2026!"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus-ring font-mono"
-                required
-                minLength={6}
-              />
-              <p className="text-[11px] text-slate-400">
-                Staff member will be able to log in immediately using this new password.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setPasswordResetUser(null)}
-                className="px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-lg"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="submit"
-                disabled={isResettingPassword || newPasswordValue.trim().length < 6}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md transition-all active:scale-95 disabled:opacity-50"
-              >
-                {isResettingPassword ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <KeyRound className="w-3.5 h-3.5" />
-                )}
-                Save New Password
-              </button>
-            </div>
-          </form>
-        </Modal>
       )}
 
       {/* Staff Profile & Records Inspection Modal (Super Admin / Admin Only) */}

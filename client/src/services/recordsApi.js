@@ -45,10 +45,20 @@ export const recordsApi = {
     return await apiClient(`/records/check-duplicate?${query.toString()}`);
   },
 
-  getDashboardStats: async (month, year, userId = null) => {
+  getDashboardStats: async (arg1, arg2, arg3) => {
     const query = new URLSearchParams();
-    if (month) query.append('month', month);
-    if (year) query.append('year', year);
+    let month, year, userId;
+    if (typeof arg1 === 'object' && arg1 !== null) {
+      month = arg1.month;
+      year = arg1.year;
+      userId = arg1.userId;
+    } else {
+      month = arg1;
+      year = arg2;
+      userId = arg3;
+    }
+    if (month && !isNaN(Number(month))) query.append('month', Number(month));
+    if (year && !isNaN(Number(year))) query.append('year', Number(year));
     if (userId) query.append('userId', userId);
     const queryString = query.toString() ? `?${query.toString()}` : '';
     return await apiClient(`/records/dashboard-stats${queryString}`);
