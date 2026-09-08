@@ -8,7 +8,7 @@ import { RecordTable } from '../components/records/RecordTable';
 import { SearchFilterBar } from '../components/records/SearchFilterBar';
 import { RecordForm } from '../components/records/RecordForm';
 import { Modal } from '../components/common/Modal';
-import { ConfirmDialog } from '../components/common/ConfirmDialog';
+import { DeleteRecordModal } from '../components/records/DeleteRecordModal';
 import { exportMonthlyReportToExcel } from '../services/excelService';
 import { exportMonthlyReportToPDF } from '../services/pdfService';
 import { PlusCircle, Camera, Download, FileSpreadsheet, FileType } from 'lucide-react';
@@ -263,14 +263,12 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
         </Modal>
       )}
 
-      {/* Delete Record Confirmation Dialog */}
-      <ConfirmDialog
+      {/* Delete Record Confirmation Modal */}
+      <DeleteRecordModal
         isOpen={Boolean(deletingRecord)}
+        record={deletingRecord}
         onClose={() => setDeletingRecord(null)}
         onConfirm={handleDeleteConfirm}
-        title="Delete Record"
-        message={`Are you sure you want to delete the record for Patient ID "${deletingRecord?.patientId}" (${deletingRecord?.patientName})? This action cannot be undone.`}
-        confirmText="Delete Record"
         isLoading={isDeleting}
       />
     </div>
