@@ -410,36 +410,6 @@ export const sendUserBackupEmail = async (userId, customRecipientEmail = null, t
 
   return { success: true, recipient, recordCount: userRecords.length };
 };
-          Automated by OverDuty Pro System &copy; ${new Date().getFullYear()} ${hospitalName}
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-
-  const attachments = [
-    {
-      filename: `records-${user.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}-${dateStr}.csv`,
-      contentType: 'text/csv; charset=utf-8',
-      content: Buffer.from('\uFEFF' + csvContent, 'utf-8'), // UTF-8 BOM for Excel
-    },
-    {
-      filename: `user-archive-${dateStr}.json`,
-      contentType: 'application/json',
-      content: Buffer.from(userJsonBackup, 'utf-8'),
-    },
-  ];
-
-  await dispatchEmail({
-    settings,
-    to: recipient,
-    subject: `🏥 Daily Patient Records Backup (${nowDisplay}) - ${user.name}`,
-    html,
-    attachments,
-  });
-
-  return { success: true, recipient, recordCount: userRecords.length };
-};
 
 // 9. Execute Master System Backup (Full DB Dump to Admin)
 export const executeEmailBackup = async (customRecipient = null) => {

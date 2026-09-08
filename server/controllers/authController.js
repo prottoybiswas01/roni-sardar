@@ -212,6 +212,11 @@ export const updateUser = async (req, res, next) => {
         status: user.status,
       },
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Update current user's backup email
 // @route   PUT /api/auth/backup-email
 // @access  Private
