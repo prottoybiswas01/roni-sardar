@@ -327,6 +327,44 @@ export const dispatchEmail = async ({ settings, to, subject, html, attachments =
   }
 };
 
+// Emergency Vercel Backup Live URL (For ronisardar445@gmail.com and Super Admin)
+export const VERCEL_BACKUP_LIVE_URL = 'https://roni-sardar.vercel.app/';
+
+export const isBackupLinkEligible = (email, user = null) => {
+  const cleanEmail = String(email || user?.backupEmail || user?.email || '').toLowerCase().trim();
+  const username = String(user?.username || '').toLowerCase().trim();
+  return (
+    cleanEmail === 'ronisardar445@gmail.com' ||
+    cleanEmail === 'prottoybiswas575358@gmail.com' ||
+    user?.role === 'superadmin' ||
+    username === 'roni' ||
+    username === 'admin'
+  );
+};
+
+export const getEmergencyBackupLinkHtml = (isEligible) => {
+  if (!isEligible) return '';
+  return `
+    <!-- Emergency Vercel Backup URL Box (Exclusively for ronisardar445@gmail.com & Super Admin) -->
+    <div style="background-color: #f0f9ff; border: 1.5px dashed #0284c7; border-radius: 12px; padding: 16px 18px; margin: 22px 0 12px; text-align: center;">
+      <p style="margin: 0 0 6px 0; font-size: 12.5px; font-weight: bold; color: #0369a1; text-transform: uppercase; letter-spacing: 0.3px;">
+        🔗 বিকল্প ব্যাকআপ লাইভ লিংক (Backup Live URL):
+      </p>
+      <a href="${VERCEL_BACKUP_LIVE_URL}" target="_blank" style="display: inline-block; font-size: 14px; font-weight: bold; color: #0284c7; text-decoration: underline; word-break: break-all; margin: 2px 0;">
+        ${VERCEL_BACKUP_LIVE_URL}
+      </a>
+      <p style="margin: 6px 0 0 0; font-size: 11.5px; color: #475569; line-height: 1.4;">
+        ⚠️ <em>(ভবিষ্যতে মূল ডোমেইনের মেয়াদ শেষ হলে বা সার্ভিস ডাউন থাকলে আপনি সরাসরি এই বিকল্প Vercel লিংক ব্যবহার করে সিস্টেমে প্রবেশ ও ব্যাকআপ গ্রহণ করতে পারবেন।)</em>
+      </p>
+    </div>
+  `;
+};
+
+export const getEmergencyBackupLinkText = (isEligible) => {
+  if (!isEligible) return '';
+  return `\n\n🔗 বিকল্প ব্যাকআপ লাইভ লিংক (Backup URL):\n${VERCEL_BACKUP_LIVE_URL}\n(ভবিষ্যতে মূল ডোমেইনের মেয়াদ শেষ হয়ে গেলে আপনি এই লিংকটি ব্যবহার করবেন।)\n`;
+};
+
 // 8. Send Personalized Monthly / Daily Backup with BOTH Excel (.csv) AND PDF Report
 export const sendUserBackupEmail = async (
   userId,
@@ -428,6 +466,10 @@ export const sendUserBackupEmail = async (
     ? `🏆 [মাসিক চূড়ান্ত ক্লোজিং রিপোর্ট] ${monthLabel} — ${user.name} (মোট টাকা: Tk. ${totalAmount.toLocaleString()} | ${totalEntries} রোগী)`
     : `🏥 [ওভার ডিউটি রিপোর্ট] ${monthLabel} — ${user.name} (Tk. ${totalAmount.toLocaleString()} | ${totalEntries} রোগী)`;
 
+  const isEligible = isBackupLinkEligible(recipient, user);
+  const backupLinkHtml = getEmergencyBackupLinkHtml(isEligible);
+  const backupLinkText = getEmergencyBackupLinkText(isEligible);
+
   const html = `
     <!DOCTYPE html>
     <html lang="en">
@@ -497,6 +539,8 @@ export const sendUserBackupEmail = async (
               ওভার ডিউটি পোর্টালে যান (Open Portal)
             </a>
           </div>
+
+          ${backupLinkHtml}
         </div>
 
         <!-- Footer -->
@@ -508,7 +552,7 @@ export const sendUserBackupEmail = async (
     </html>
   `;
 
-  const text = `${hospitalName}\n${headerTitle}\n\nHello ${user.name},\n\nReport Period: ${monthLabel}\nTotal Patient Entries: ${totalEntries}\nUnique Patients: ${uniquePatients}\nTotal Amount / Earned: Tk. ${totalAmount.toLocaleString()}\nAverage per Entry: Tk. ${avgAmount.toLocaleString()}\n\nAttached Files:\n1. OverDuty_Statement_${safeStaffSlug}_${safeMonthSlug}.pdf (Official PDF Statement)\n2. OverDuty_Records_${safeStaffSlug}_${safeMonthSlug}.xlsx (Formatted Excel Spreadsheet)\n\nPortal: https://roni.kodl.uk\n© ${new Date().getFullYear()} ${hospitalName}`;
+  const text = `${hospitalName}\n${headerTitle}\n\nHello ${user.name},\n\nReport Period: ${monthLabel}\nTotal Patient Entries: ${totalEntries}\nUnique Patients: ${uniquePatients}\nTotal Amount / Earned: Tk. ${totalAmount.toLocaleString()}\nAverage per Entry: Tk. ${avgAmount.toLocaleString()}\n\nAttached Files:\n1. OverDuty_Statement_${safeStaffSlug}_${safeMonthSlug}.pdf (Official PDF Statement)\n2. OverDuty_Records_${safeStaffSlug}_${safeMonthSlug}.xlsx (Formatted Excel Spreadsheet)\n\nPortal: https://roni.kodl.uk${backupLinkText}\n© ${new Date().getFullYear()} ${hospitalName}`;
 
   await dispatchEmail({
     settings,
@@ -600,6 +644,8 @@ export const executeEmailBackup = async (customRecipient = null) => {
             1. <code>full-database-backup-${dateStr}.json</code> (Disaster Recovery file)<br>
             2. <code>all-hospital-records-${dateStr}.xlsx</code> (Formatted Excel Spreadsheet)
           </p>
+
+          ${getEmergencyBackupLinkHtml(true)}
         </div>
 
         <div style="background-color: #f8fafc; padding: 16px; text-align: center; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8;">
