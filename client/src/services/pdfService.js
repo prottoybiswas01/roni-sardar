@@ -4,21 +4,29 @@ import { formatDateDotShort, formatHospitalTime, MONTHS } from '../utils/dateUti
 import { formatSL } from '../utils/formatters';
 
 /**
- * Generate and download a formatted PDF report for the selected month/year
- * Matching Ad-din Akij Medical College Hospital format
+ * Generate and download a formatted monochrome black & white PDF report
+ * Exactly matching Ad-din Akij Medical College Hospital "One Call" format with signatures.
  */
 export const exportMonthlyReportToPDF = ({
   records = [],
   month,
   year,
-  hospitalName = 'Ad-din Akij Medical College Hospital',
-  location = 'Boyra, Khulna',
+  hospitalName = 'AD-DIN AKIJ MEDICAL COLLEGE HOSPITAL',
 }) => {
   const monthObj = MONTHS.find((m) => m.value === Number(month));
-  const monthName = monthObj ? monthObj.name.toUpperCase() : 'ALL';
-  const monthYearString = `MONTH: ${monthName}-${year}`;
+  const monthName = monthObj ? monthObj.name : 'All Months';
+  const monthYearString = `${monthName.toUpperCase()} ${year}`;
 
-  // Initialize jsPDF in portrait A4
+  const uniquePatients = new Set(
+    records.map((r) => String(r.patientId || '').trim()).filter(Boolean)
+  ).size;
+
+  const totalAmount = records.reduce((sum, r) => {
+    const val = parseFloat(String(r.remark || '0').replace(/[^0-9.-]+/g, '')) || 0;
+    return sum + val;
+  }, 0);
+
+  // Initialize jsPDF in portrait A4 (width: 210mm, height: 297mm)
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -26,42 +34,43 @@ export const exportMonthlyReportToPDF = ({
   });
 
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
 
-  // 1. Hospital Header
+  // 1. Hospital Official Name
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13.5);
-  doc.setTextColor(15, 23, 42); // slate-900
-  doc.text(hospitalName, pageWidth / 2, 16, { align: 'center' });
+  doc.setFontSize(14);
+  doc.setTextColor(0, 0, 0);
+  doc.text(hospitalName.toUpperCase(), pageWidth / 2, 14, { align: 'center' });
 
-  // 2. Department / Location Subtitle
+  // 2. "One Call" Header
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.setTextColor(71, 85, 105); // slate-600
-  doc.text(location, pageWidth / 2, 22, { align: 'center' });
+  doc.setFontSize(10.5);
+  doc.text('One Call', pageWidth / 2, 20, { align: 'center' });
 
-  // 3. Month & Year Banner Bar
+  // 3. Month & Year
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  doc.setTextColor(15, 23, 42);
-  doc.text(monthYearString, pageWidth / 2, 29, { align: 'center' });
+  doc.text(monthYearString, pageWidth / 2, 26, { align: 'center' });
 
-  // Subtle separator line
-  doc.setDrawColor(203, 213, 225); // slate-300
-  doc.setLineWidth(0.4);
-  doc.line(14, 32, pageWidth - 14, 32);
+  // Divider Line 1
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.35);
+  doc.line(14, 29, pageWidth - 14, 29);
 
-  // Metadata summary (Total records)
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(100, 116, 139);
-  doc.text(`Total Entries: ${records.length}`, 14, 37);
-  doc.text(`Generated: ${new Date().toLocaleDateString('en-GB')}`, pageWidth - 14, 37, { align: 'right' });
+  // 4. One-line Summary
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  const summaryText = `Total Records: ${records.length}   |   Unique Patients: ${uniquePatients}   |   Total Remark / Amount: Tk. ${totalAmount.toLocaleString()}`;
+  doc.text(summaryText, pageWidth / 2, 33.5, { align: 'center' });
 
-  // 4. Build Table Rows
+  // Divider Line 2
+  doc.line(14, 36, pageWidth - 14, 36);
+
+  // 5. Build Table Rows
   const tableData = records.map((rec, index) => {
     const slVal = formatSL(rec.sl || index + 1);
     const idVal = String(rec.patientId || '');
-    const nameVal = String(rec.patientName || '').toUpperCase();
+    const nameVal = String(rec.patientName || 'PATIENT').toUpperCase();
     const dateVal = formatDateDotShort(rec.date);
     const timeVal = formatHospitalTime(rec.time);
     const remarkVal = String(rec.remark || '100');
@@ -69,52 +78,83 @@ export const exportMonthlyReportToPDF = ({
     return [slVal, idVal, nameVal, dateVal, timeVal, remarkVal];
   });
 
-  // 5. Render AutoTable
+  // 6. Render AutoTable (Black & White, Print-friendly)
   autoTable(doc, {
-    startY: 40,
-    head: [['SL', 'ID', 'Patient', 'Date', 'TIME', 'Remark']],
+    startY: 39,
+    head: [['SL', 'Patient ID', 'Patient Name', 'Date', 'Time', 'Remark (Tk)']],
     body: tableData,
-    theme: 'grid',
+    foot: [[`TOTAL ENTRIES: ${records.length}`, '', '', '', '', `Tk. ${totalAmount.toLocaleString()}`]],
+    theme: 'plain',
     headStyles: {
-      fillColor: [15, 23, 42], // Slate 900
-      textColor: [255, 255, 255],
+      textColor: [0, 0, 0],
       fontStyle: 'bold',
-      fontSize: 9,
-      halign: 'center',
-      cellPadding: 2.5,
+      fontSize: 8.5,
+      halign: 'left',
+      cellPadding: 2,
+      lineWidth: { top: 0.35, bottom: 0.35, left: 0.35, right: 0.35 },
+      lineColor: [0, 0, 0],
     },
     bodyStyles: {
-      textColor: [30, 41, 59], // Slate 800
-      fontSize: 8.5,
-      cellPadding: 2.2,
-      lineColor: [203, 213, 225], // Slate 300
+      textColor: [0, 0, 0],
+      fontSize: 8,
+      cellPadding: 1.8,
+      lineWidth: { bottom: 0.15 },
+      lineColor: [200, 200, 200],
     },
-    alternateRowStyles: {
-      fillColor: [248, 250, 252], // Slate 50
+    footStyles: {
+      textColor: [0, 0, 0],
+      fontStyle: 'bold',
+      fontSize: 8.5,
+      cellPadding: 2,
+      lineWidth: { top: 0.35, bottom: 0.35, left: 0.35, right: 0.35 },
+      lineColor: [0, 0, 0],
     },
     columnStyles: {
-      0: { halign: 'center', cellWidth: 14, fontStyle: 'bold' }, // SL
-      1: { cellWidth: 26, fontStyle: 'bold', textColor: [15, 23, 42] }, // ID
-      2: { cellWidth: 50 }, // Patient
-      3: { cellWidth: 24, halign: 'center' }, // Date (01.08.26)
-      4: { cellWidth: 24, halign: 'center' }, // TIME (20.50PM)
-      5: { cellWidth: 20, halign: 'center', fontStyle: 'bold' }, // Remark (100)
+      0: { halign: 'center', cellWidth: 12 }, // SL
+      1: { cellWidth: 28, fontStyle: 'bold' }, // Patient ID
+      2: { cellWidth: 62 }, // Patient Name
+      3: { cellWidth: 24, halign: 'center' }, // Date
+      4: { cellWidth: 24, halign: 'center' }, // Time
+      5: { cellWidth: 32, halign: 'right', fontStyle: 'bold' }, // Remark (Tk)
     },
-    didDrawPage: (data) => {
-      // Footer page numbering
-      const pageCount = doc.internal.getNumberOfPages();
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(148, 163, 184); // slate-400
-      const footerStr = `Page ${data.pageNumber} of ${pageCount}`;
-      doc.text(footerStr, pageWidth / 2, doc.internal.pageSize.getHeight() - 8, {
-        align: 'center',
-      });
-    },
-    margin: { top: 40, left: 14, right: 14, bottom: 15 },
+    margin: { top: 39, left: 14, right: 14, bottom: 35 },
   });
 
-  // 6. Save and Download
-  const fileName = `${monthName}-${year}.pdf`;
+  // 7. Signature Blocks (at the bottom)
+  let finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY : 180;
+  if (finalY + 30 > pageHeight - 15) {
+    doc.addPage();
+    finalY = 30;
+  }
+
+  const sigY = finalY + 22;
+
+  // Left Signature: Roni Sarder / Medical Technology
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.35);
+  doc.line(20, sigY, 70, sigY);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.setTextColor(0, 0, 0);
+  doc.text('Roni Sarder', 45, sigY + 4.5, { align: 'center' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text('Medical Technology', 45, sigY + 8.5, { align: 'center' });
+
+  // Right Signature: Mizanur Rahman / Incharge
+  doc.line(pageWidth - 70, sigY, pageWidth - 20, sigY);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.text('Mizanur Rahman', pageWidth - 45, sigY + 4.5, { align: 'center' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text('Incharge', pageWidth - 45, sigY + 8.5, { align: 'center' });
+
+  // 8. Save and Download PDF
+  const fileName = `OverDuty_Report_${monthName}_${year}.pdf`;
   doc.save(fileName);
 };
