@@ -8,7 +8,7 @@ import { backupApi } from '../services/backupApi';
 import { exportMonthlyReportToExcel } from '../services/excelService';
 import { exportMonthlyReportToPDF } from '../services/pdfService';
 import { Modal } from '../components/common/Modal';
-import { formatDateDotShort, formatHospitalTime } from '../utils/dateUtils';
+import { formatDateDotShort, formatHospitalTime, MONTHS, getAvailableYears } from '../utils/dateUtils';
 import { formatSL } from '../utils/formatters';
 import {
   Settings,
@@ -44,6 +44,7 @@ import {
   Send,
   HelpCircle,
   Check,
+  Lock,
 } from 'lucide-react';
 
 export const SettingsPage = ({ initialTab = 'general' }) => {
@@ -78,30 +79,23 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
   const [newPasswordValue, setNewPasswordValue] = useState('');
   const [isResettingPassword, setIsResettingPassword] = useState(false);
 
-  // Backup & Recovery state
-  const [backupStatus, setBackupStatus] = useState(null);
-  const [isLoadingBackupStatus, setIsLoadingBackupStatus] = useState(false);
-  const [backupFormData, setBackupFormData] = useState({
-    backupEmail: '',
-    autoEmailBackup: true,
-    emailProvider: 'resend',
-    resendApiKey: '',
-    senderEmail: 'onboarding@resend.dev',
-    senderName: 'OverDuty Hospital Backup',
-    smtpHost: 'smtp.gmail.com',
-    smtpPort: 465,
-    smtpUser: '',
-    smtpPass: '',
-    smtpSecure: true,
-  });
-  const [isSavingBackupSettings, setIsSavingBackupSettings] = useState(false);
-  const [isSendingBackupEmail, setIsSendingBackupEmail] = useState(false);
-  const [isSendingMyBackup, setIsSendingMyBackup] = useState(false);
-  const [isTestingGateway, setIsTestingGateway] = useState(false);
-  const [isExportingFullJson, setIsExportingFullJson] = useState(false);
-  const [restoreFileJson, setRestoreFileJson] = useState(null);
-  const [restoreFileName, setRestoreFileName] = useState('');
-  const [isRestoringDb, setIsRestoringDb] = useState(false);
+  // Ultra-Simple Email Backup state
+  const [userBackupEmail, setUserBackupEmail] = useState('');
+  const [isEmailLocked, setIsEmailLocked] = useState(false);
+  const [backupMonth, setBackupMonth] = useState(selectedMonth || new Date().getMonth() + 1);
+  const [backupYear, setBackupYear] = useState(selectedYear || new Date().getFullYear());
+  const [isSavingEmail, setIsSavingEmail] = useState(false);
+  const [isSendingEmailNow, setIsSendingEmailNow] = useState(false);
+
+  useEffect(() => {
+    if (currentUser) {
+      const emailVal = currentUser.backupEmail || currentUser.email || '';
+      setUserBackupEmail(emailVal);
+      if (!isSuperAdmin && currentUser.backupEmail) {
+        setIsEmailLocked(true);
+      }
+    }
+  }, [currentUser, isSuperAdmin]);
 
   // Inspect User Profile & Records Modal state
   const [inspectingUser, setInspectingUser] = useState(null);
@@ -224,165 +218,46 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
     }
   };
 
-  // Fetch backup status and configuration
-  const fetchBackupStatus = useCallback(async () => {
-    try {
-      setIsLoadingBackupStatus(true);
-      const res = await backupApi.getBackupStatus();
-      if (res.success && res.data) {
-        setBackupStatus(res.data);
-        setBackupFormData({
-          backupEmail: res.data.backupEmail || 'admin@hospital.com',
-          autoEmailBackup: res.data.autoEmailBackup ?? true,
-          emailProvider: res.data.emailProvider || 'resend',
-          resendApiKey: '',
-          senderEmail: res.data.senderEmail || 'onboarding@resend.dev',
-          senderName: res.data.senderName || 'OverDuty Hospital Backup',
-          smtpHost: res.data.smtpHost || 'smtp.gmail.com',
-          smtpPort: res.data.smtpPort || 465,
-          smtpUser: res.data.smtpUser || '',
-          smtpPass: '',
-          smtpSecure: res.data.smtpSecure ?? true,
-        });
-      }
-    } catch (err) {
-      console.error('Failed to load backup status:', err);
-    } finally {
-      setIsLoadingBackupStatus(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === 'backup') {
-      fetchBackupStatus();
-    }
-  }, [activeTab, fetchBackupStatus]);
-
-  const handleSaveBackupSettings = async (e) => {
-    e.preventDefault();
-    try {
-      setIsSavingBackupSettings(true);
-      await updateSettings(backupFormData);
-      toast.success('Email gateway & backup settings saved successfully');
-      fetchBackupStatus();
-    } catch (err) {
-      toast.error('Failed to save backup settings: ' + err.message);
-    } finally {
-      setIsSavingBackupSettings(false);
-    }
-  };
-
-  // Send Personal Records Backup to Current User's Email
-  const handleTriggerMyBackupNow = async () => {
-    try {
-      setIsSendingMyBackup(true);
-      const res = await backupApi.triggerEmailBackup({ forSelfOnly: true });
-      toast.success(res.message || 'Your personal backup has been emailed to you!');
-      fetchBackupStatus();
-    } catch (err) {
-      toast.error('Personal backup delivery failed: ' + err.message);
-    } finally {
-      setIsSendingMyBackup(false);
-    }
-  };
-
-  // Master system backup trigger (Admin)
-  const handleTriggerMasterBackupEmailNow = async () => {
-    try {
-      setIsSendingBackupEmail(true);
-      const res = await backupApi.triggerEmailBackup({ forSelfOnly: false });
-      toast.success(res.message || 'Master database backup successfully dispatched!');
-      fetchBackupStatus();
-    } catch (err) {
-      toast.error('Master backup email dispatch failed: ' + err.message);
-    } finally {
-      setIsSendingBackupEmail(false);
-    }
-  };
-
-  const handleTestGateway = async () => {
-    const testRecipient = backupFormData.backupEmail || currentUser?.email;
-    if (!testRecipient) {
-      toast.warning('Please enter a recipient email to test the connection');
+  // User Email Backup Handlers
+  const handleSaveUserBackupEmail = async (e) => {
+    e?.preventDefault?.();
+    if (!userBackupEmail || !userBackupEmail.includes('@')) {
+      toast.warning('Please enter a valid email address');
       return;
     }
     try {
-      setIsTestingGateway(true);
-      const res = await backupApi.testEmailSettings({
-        emailProvider: backupFormData.emailProvider,
-        resendApiKey: backupFormData.resendApiKey,
-        senderEmail: backupFormData.senderEmail,
-        senderName: backupFormData.senderName,
-        host: backupFormData.smtpHost,
-        port: Number(backupFormData.smtpPort),
-        user: backupFormData.smtpUser,
-        pass: backupFormData.smtpPass,
-        secure: backupFormData.smtpSecure,
-        to: testRecipient,
+      setIsSavingEmail(true);
+      const res = await authApi.updateBackupEmail(userBackupEmail.trim());
+      toast.success(res.message || 'Backup email address saved successfully!');
+      if (!isSuperAdmin) {
+        setIsEmailLocked(true);
+      }
+    } catch (err) {
+      toast.error('Failed to save email: ' + err.message);
+    } finally {
+      setIsSavingEmail(false);
+    }
+  };
+
+  const handleSendExcelNow = async () => {
+    const targetEmail = userBackupEmail.trim() || currentUser?.email;
+    if (!targetEmail || !targetEmail.includes('@')) {
+      toast.warning('Please save a valid email address first');
+      return;
+    }
+    try {
+      setIsSendingEmailNow(true);
+      const res = await backupApi.triggerEmailBackup({
+        customRecipient: targetEmail,
+        forSelfOnly: true,
+        month: backupMonth === 'all' ? null : Number(backupMonth),
+        year: Number(backupYear),
       });
-      toast.success(res.message);
+      toast.success(res.message || `Excel report sent successfully to ${targetEmail}!`);
     } catch (err) {
-      toast.error('Email Gateway Test Failed: ' + err.message);
+      toast.error('Failed to send email: ' + err.message);
     } finally {
-      setIsTestingGateway(false);
-    }
-  };
-
-  const handleDownloadFullBackup = async () => {
-    try {
-      setIsExportingFullJson(true);
-      await backupApi.downloadFullBackup();
-      toast.success('Complete database snapshot downloaded successfully');
-      fetchBackupStatus();
-    } catch (err) {
-      toast.error('Download backup failed: ' + err.message);
-    } finally {
-      setIsExportingFullJson(false);
-    }
-  };
-
-  const handleFileSelectForRestore = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setRestoreFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const parsed = JSON.parse(event.target.result);
-        if (!parsed.data || !Array.isArray(parsed.data.records)) {
-          toast.error('Invalid backup file structure. File must be an OverDuty Pro backup JSON.');
-          setRestoreFileJson(null);
-          return;
-        }
-        setRestoreFileJson(parsed);
-        toast.info(`Backup file loaded: ${parsed.counts?.totalRecords || parsed.data.records.length} records found.`);
-      } catch (err) {
-        toast.error('Failed to parse JSON backup file: ' + err.message);
-        setRestoreFileJson(null);
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const handleExecuteRestore = async () => {
-    if (!restoreFileJson) return;
-    if (!window.confirm(`Are you sure you want to restore ${restoreFileJson.counts?.totalRecords || restoreFileJson.data.records.length} records into the database? Existing identical records will not be overwritten.`)) {
-      return;
-    }
-
-    try {
-      setIsRestoringDb(true);
-      const res = await backupApi.restoreBackup(restoreFileJson);
-      toast.success(res.message);
-      setRestoreFileJson(null);
-      setRestoreFileName('');
-      fetchBackupStatus();
-      fetchUsers();
-    } catch (err) {
-      toast.error('Restore failed: ' + err.message);
-    } finally {
-      setIsRestoringDb(false);
+      setIsSendingEmailNow(false);
     }
   };
 
@@ -852,387 +727,169 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
         </div>
       )}
 
-      {/* Tab 3: Database Backup & Recovery (All Authenticated Users) */}
+      {/* Tab 3: Automated Email Backup */}
       {activeTab === 'backup' && (
-        <div className="space-y-6 max-w-4xl">
-          {/* Section 1: User's Personal Daily Email Backup (Visible to EVERYONE) */}
-          <div className="bg-gradient-to-br from-white to-sky-50/60 rounded-2xl border border-sky-200/80 shadow-subtle p-6 sm:p-8">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-sky-100 pb-5 mb-5">
-              <div>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-brand-100 text-brand-700 inline-block mb-1.5">
-                  Personal Record Protection
-                </span>
-                <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <Mail className="w-5 h-5 text-brand-600" />
-                  My Automated Daily Email Backup
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5 max-w-xl">
-                  Every night at 12:00 AM (Midnight), all clinical records and over duty logs entered by you are automatically compiled into an Excel spreadsheet and sent directly to your email.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                disabled={isSendingMyBackup}
-                onClick={handleTriggerMyBackupNow}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-md shadow-brand-500/20 transition-all active:scale-95 whitespace-nowrap disabled:opacity-50"
-              >
-                {isSendingMyBackup ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4" />
-                )}
-                Send My Backup to My Email Now
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Recipient Email</p>
-                <p className="text-sm font-bold text-slate-900 mt-1 truncate">{currentUser?.email || 'N/A'}</p>
-                <p className="text-[10px] text-emerald-600 font-medium mt-0.5">✓ Registered with account</p>
-              </div>
-
-              <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Delivery Schedule</p>
-                <p className="text-sm font-bold text-slate-900 mt-1 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-brand-600" /> Every Night 00:00 AM
-                </p>
-                <p className="text-[10px] text-slate-400 mt-0.5">Automated background job</p>
-              </div>
-
-              <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Attached Formats</p>
-                <p className="text-sm font-bold text-slate-900 mt-1 flex items-center gap-1.5">
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" /> Excel (.CSV) + JSON
-                </p>
-                <p className="text-[10px] text-slate-400 mt-0.5">Opens in Excel & Google Sheets</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Admin Tools: Overview, Gateway, JSON Master Backup, and Disaster Recovery */}
-          {isAdmin && (
-            <>
-              {/* Section 2: Global Stats & Overview */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="p-4 bg-white rounded-xl border border-slate-200/80 shadow-subtle flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Master Total Records</p>
-                    <h4 className="text-2xl font-extrabold text-slate-900 mt-1">{backupStatus?.totalRecords ?? 0}</h4>
-                    <p className="text-[10px] text-slate-400">Across {backupStatus?.totalUsers ?? 0} staff accounts</p>
-                  </div>
-                  <div className="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
-                    <Database className="w-5 h-5" />
-                  </div>
+        <div className="max-w-2xl mx-auto space-y-6">
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-subtle overflow-hidden">
+            {/* Header */}
+            <div className="p-6 border-b border-slate-100 bg-gradient-to-r from-brand-50/60 via-white to-sky-50/60">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-brand-600 text-white flex items-center justify-center shadow-md shadow-brand-500/20 shrink-0">
+                  <Mail className="w-6 h-6" />
                 </div>
-
-                <div className="p-4 bg-white rounded-xl border border-slate-200/80 shadow-subtle flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Local Snapshots</p>
-                    <h4 className="text-2xl font-extrabold text-slate-900 mt-1">{backupStatus?.localSnapshots?.length ?? 0}</h4>
-                    <p className="text-[10px] text-brand-600 font-medium">Saved on server disk</p>
-                  </div>
-                  <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
-                    <Server className="w-5 h-5" />
-                  </div>
-                </div>
-
-                <div className="p-4 bg-white rounded-xl border border-slate-200/80 shadow-subtle flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Midnight Auto-Backup</p>
-                    <h4 className="text-sm font-bold text-emerald-600 mt-1 flex items-center gap-1">
-                      <CheckCircle2 className="w-4 h-4" /> Active (00:00 AM)
-                    </h4>
-                    <p className="text-[10px] text-slate-400">Runs for all active staff</p>
-                  </div>
-                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                    <Clock className="w-5 h-5" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 3: 1-Click Master Database Snapshot (.JSON) */}
-              <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-brand-950 rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <h3 className="text-lg font-bold flex items-center gap-2">
-                    <Download className="w-5 h-5 text-brand-400" />
-                    1-Click Full System Master Backup (.JSON)
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">
+                    Automated Excel Email Backup
                   </h3>
-                  <p className="text-xs text-slate-300 max-w-xl">
-                    Download an offline snapshot of ALL patient records, registered staff accounts, and hospital settings. Keep this file safe for full disaster recovery.
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Configure your backup email and receive your clinical records directly as an Excel spreadsheet.
                   </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 sm:p-8 space-y-6">
+              {/* Email Address Section */}
+              <form onSubmit={handleSaveUserBackupEmail} className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    Backup Email Address
+                    {isEmailLocked && !isSuperAdmin && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                        <Lock className="w-3 h-3 text-slate-500" /> Locked
+                      </span>
+                    )}
+                  </label>
+
+                  {isSuperAdmin && isEmailLocked && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEmailLocked(false)}
+                      className="text-xs font-semibold text-brand-600 hover:text-brand-700 underline"
+                    >
+                      Admin: Edit Email
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                  <div className="relative flex-1">
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="email"
+                      required
+                      disabled={isEmailLocked && !isSuperAdmin}
+                      value={userBackupEmail}
+                      onChange={(e) => setUserBackupEmail(e.target.value)}
+                      placeholder="e.g. yourname@gmail.com"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-sm font-medium text-slate-900 bg-white placeholder-slate-400 focus-ring disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 transition-all"
+                    />
+                  </div>
+
+                  {(!isEmailLocked || isSuperAdmin) && (
+                    <button
+                      type="submit"
+                      disabled={isSavingEmail}
+                      className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-md shadow-brand-500/20 transition-all active:scale-95 disabled:opacity-50 whitespace-nowrap"
+                    >
+                      {isSavingEmail ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Save className="w-4 h-4" />
+                      )}
+                      Save Email
+                    </button>
+                  )}
+                </div>
+
+                {isEmailLocked && !isSuperAdmin ? (
+                  <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                    <Lock className="w-3 h-3 text-slate-400" /> Your email is saved & locked. Contact Super Admin if you need to update it.
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-slate-400">
+                    Enter the email address where your clinical records and over-duty Excel files should be sent.
+                  </p>
+                )}
+              </form>
+
+              <hr className="border-slate-100" />
+
+              {/* Month & Year Selector + Send Now */}
+              <div className="space-y-4">
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                  Select Report Period & Dispatch
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-medium text-slate-500 mb-1 block">Month</label>
+                    <select
+                      value={backupMonth}
+                      onChange={(e) => setBackupMonth(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold text-slate-800 bg-white focus-ring transition-all"
+                    >
+                      <option value="all">📁 All Months (Entire Year)</option>
+                      {MONTHS.map((m) => (
+                        <option key={m.value} value={m.value}>
+                          {m.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-medium text-slate-500 mb-1 block">Year</label>
+                    <select
+                      value={backupYear}
+                      onChange={(e) => setBackupYear(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold text-slate-800 bg-white focus-ring transition-all"
+                    >
+                      {getAvailableYears().map((y) => (
+                        <option key={y} value={y}>
+                          {y}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <button
                   type="button"
-                  disabled={isExportingFullJson}
-                  onClick={handleDownloadFullBackup}
-                  className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-brand-500 hover:bg-brand-400 text-white text-xs font-bold shadow-lg shadow-brand-500/30 transition-all active:scale-95 whitespace-nowrap disabled:opacity-50"
+                  disabled={isSendingEmailNow || !userBackupEmail}
+                  onClick={handleSendExcelNow}
+                  className="w-full mt-2 inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl bg-gradient-to-r from-brand-600 to-sky-600 hover:from-brand-700 hover:to-sky-700 text-white font-bold text-sm shadow-lg shadow-brand-500/25 transition-all active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none"
                 >
-                  {isExportingFullJson ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                  {isSendingEmailNow ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Sending Excel Report to Your Email...
+                    </>
                   ) : (
-                    <FileJson className="w-4 h-4" />
+                    <>
+                      <FileSpreadsheet className="w-4 h-4" />
+                      Send Excel Report to My Email Now
+                    </>
                   )}
-                  Download Full DB (.JSON)
                 </button>
               </div>
 
-              {/* Section 4: Central Email Engine (Powered by Resend) */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-subtle p-6 sm:p-8">
-                <div className="border-b border-slate-100 pb-4 mb-6 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                        <Mail className="w-5 h-5 text-brand-600" />
-                        Automated Mail Engine (Resend)
-                      </h3>
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Connected & Active
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Integrated directly with your domain via Resend. Automated midnight backups will be dispatched seamlessly to all staff.
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={isSendingBackupEmail}
-                      onClick={handleTriggerMasterBackupEmailNow}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-brand-50 text-brand-800 border border-brand-200 hover:bg-brand-100 text-xs font-bold transition-all active:scale-95 disabled:opacity-50"
-                      title="Dispatch master backup to Admin email now"
-                    >
-                      {isSendingBackupEmail ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Send className="w-3.5 h-3.5 text-brand-600" />
-                      )}
-                      Dispatch Master Backup Now
-                    </button>
-                  </div>
+              {/* Automatic Midnight Info Card */}
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center shrink-0 mt-0.5">
+                  <Clock className="w-4 h-4" />
                 </div>
-
-                {/* Last Backup Event */}
-                {backupStatus?.lastBackupAt && (
-                  <div className={`p-3.5 rounded-xl border mb-6 text-xs flex items-start gap-2.5 ${
-                    backupStatus.lastBackupStatus === 'success'
-                      ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
-                      : backupStatus.lastBackupStatus === 'error'
-                      ? 'bg-rose-50/80 border-rose-200 text-rose-900'
-                      : 'bg-slate-50 border-slate-200 text-slate-700'
-                  }`}>
-                    {backupStatus.lastBackupStatus === 'success' ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    ) : backupStatus.lastBackupStatus === 'error' ? (
-                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                    ) : (
-                      <Clock className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
-                    )}
-                    <div>
-                      <span className="font-bold">Last Dispatch Status: </span>
-                      <span>{new Date(backupStatus.lastBackupAt).toLocaleString()} — {backupStatus.lastBackupMessage}</span>
-                    </div>
-                  </div>
-                )}
-
-                <form onSubmit={handleSaveBackupSettings} className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Sender Email / Domain */}
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-700">Sender Email (From Address)</label>
-                      <input
-                        type="text"
-                        value={backupFormData.senderEmail}
-                        onChange={(e) => setBackupFormData({ ...backupFormData, senderEmail: e.target.value })}
-                        placeholder="e.g. backup@roni.kodl.uk"
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus-ring font-mono text-xs"
-                      />
-                      <p className="text-[10px] text-slate-400">
-                        Default: <code>backup@roni.kodl.uk</code> (verified on Resend).
-                      </p>
-                    </div>
-
-                    {/* Sender Display Name */}
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-700">Sender Display Name</label>
-                      <input
-                        type="text"
-                        value={backupFormData.senderName}
-                        onChange={(e) => setBackupFormData({ ...backupFormData, senderName: e.target.value })}
-                        placeholder="OverDuty Hospital Backup"
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus-ring font-medium"
-                      />
-                      <p className="text-[10px] text-slate-400">The title that appears in staff members' inboxes.</p>
-                    </div>
-
-                    {/* Master Backup Recipient Email */}
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                        <Crown className="w-3.5 h-3.5 text-amber-500" />
-                        Admin Master Backup Recipient Email
-                      </label>
-                      <input
-                        type="email"
-                        value={backupFormData.backupEmail}
-                        onChange={(e) => setBackupFormData({ ...backupFormData, backupEmail: e.target.value })}
-                        placeholder="e.g. admin@hospital.com or your-email@gmail.com"
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus-ring font-medium"
-                      />
-                      <p className="text-[10px] text-slate-400">
-                        Receives the master JSON snapshot and all-staff combined spreadsheet every night at 12:00 AM.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Toggles & Save Buttons */}
-                  <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
-                    <label className="flex items-center gap-2.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={backupFormData.autoEmailBackup}
-                        onChange={(e) => setBackupFormData({ ...backupFormData, autoEmailBackup: e.target.checked })}
-                        className="w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500"
-                      />
-                      <span className="text-xs font-semibold text-slate-800">
-                        Enable Automated Midnight Dispatch (00:00 AM)
-                      </span>
-                    </label>
-
-                    <div className="flex items-center gap-2.5">
-                      <button
-                        type="button"
-                        disabled={isTestingGateway}
-                        onClick={handleTestGateway}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors disabled:opacity-50"
-                      >
-                        {isTestingGateway ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <Check className="w-3.5 h-3.5 text-emerald-600" />
-                        )}
-                        Test Email Delivery
-                      </button>
-
-                      <button
-                        type="submit"
-                        disabled={isSavingBackupSettings}
-                        className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold shadow-md shadow-brand-600/30 transition-all active:scale-95 disabled:opacity-50"
-                      >
-                        {isSavingBackupSettings ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <Save className="w-3.5 h-3.5" />
-                        )}
-                        Save Settings
-                      </button>
-                    </div>
-                  </div>
-                </form>
-              </div>
-
-              {/* Section 5: Disaster Recovery / Restore Database from JSON */}
-              <div className="bg-white rounded-2xl border border-rose-200/80 shadow-subtle p-6 sm:p-8">
-                <div className="border-b border-rose-100 pb-4 mb-5">
-                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <Upload className="w-5 h-5 text-rose-600" />
-                    Disaster Recovery / Restore Database from Backup File
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    If the database ever crashes, is wiped, or account records need to be recovered, upload a previously exported <code>.json</code> backup file to safely restore all patient records and user accounts.
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900">
+                    Automatic Midnight Delivery Active
+                  </h4>
+                  <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                    Every night at <strong>12:00 AM (00:00)</strong>, your complete over-duty Excel report for the active month is automatically generated and sent directly to your email.
                   </p>
                 </div>
-
-                <div className="space-y-4 max-w-xl">
-                  <div className="border-2 border-dashed border-slate-300 hover:border-brand-400 rounded-xl p-6 text-center bg-slate-50/60 transition-colors">
-                    <input
-                      type="file"
-                      id="backupFileInput"
-                      accept=".json"
-                      onChange={handleFileSelectForRestore}
-                      className="hidden"
-                    />
-                    <label
-                      htmlFor="backupFileInput"
-                      className="cursor-pointer flex flex-col items-center justify-center gap-2"
-                    >
-                      <FileJson className="w-8 h-8 text-slate-400" />
-                      <span className="text-xs font-bold text-brand-700 hover:text-brand-800">
-                        {restoreFileName ? restoreFileName : 'Click to select Backup JSON file from your computer'}
-                      </span>
-                      <span className="text-[10px] text-slate-400">Accepts hospital-overduty-backup-*.json</span>
-                    </label>
-                  </div>
-
-                  {restoreFileJson && (
-                    <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 text-xs space-y-2">
-                      <div className="flex items-center justify-between font-bold text-emerald-900">
-                        <span>✅ Valid Backup File Verified</span>
-                        <span>Date: {restoreFileJson.timestamp ? new Date(restoreFileJson.timestamp).toLocaleDateString() : 'N/A'}</span>
-                      </div>
-                      <p className="text-emerald-800">
-                        Contains <strong>{restoreFileJson.counts?.totalRecords || restoreFileJson.data?.records?.length || 0} patient records</strong> and <strong>{restoreFileJson.counts?.totalUsers || restoreFileJson.data?.users?.length || 0} user accounts</strong>.
-                      </p>
-
-                      <button
-                        type="button"
-                        disabled={isRestoringDb}
-                        onClick={handleExecuteRestore}
-                        className="mt-2 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all active:scale-95 disabled:opacity-50"
-                      >
-                        {isRestoringDb ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Upload className="w-4 h-4" />
-                        )}
-                        Restore Database Now
-                      </button>
-                    </div>
-                  )}
-                </div>
               </div>
-
-              {/* Section 6: Local Server Disk Snapshots */}
-              {backupStatus?.localSnapshots?.length > 0 && (
-                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-subtle overflow-hidden">
-                  <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                        <Server className="w-4 h-4 text-slate-600" />
-                        Local Server Disk Snapshots Archive
-                      </h3>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Snapshots automatically saved on the server's local file storage
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100">
-                        <tr>
-                          <th className="py-2.5 px-4">Filename</th>
-                          <th className="py-2.5 px-4">Created Date</th>
-                          <th className="py-2.5 px-4 text-right">File Size</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 font-mono text-slate-700">
-                        {backupStatus.localSnapshots.map((snap) => (
-                          <tr key={snap.filename} className="hover:bg-slate-50">
-                            <td className="py-2.5 px-4 font-bold text-brand-700">{snap.filename}</td>
-                            <td className="py-2.5 px-4 font-sans">{new Date(snap.createdAt).toLocaleString()}</td>
-                            <td className="py-2.5 px-4 text-right font-sans">{(snap.sizeBytes / 1024).toFixed(1)} KB</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
+            </div>
+          </div>
         </div>
       )}
 

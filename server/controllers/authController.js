@@ -212,6 +212,26 @@ export const updateUser = async (req, res, next) => {
         status: user.status,
       },
     });
+// @desc    Update current user's backup email
+// @route   PUT /api/auth/backup-email
+// @access  Private
+export const updateMyBackupEmail = async (req, res, next) => {
+  try {
+    const { backupEmail } = req.body;
+    if (!backupEmail) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid email address' });
+    }
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    user.backupEmail = backupEmail.trim().toLowerCase();
+    await user.save();
+    res.status(200).json({
+      success: true,
+      message: 'Backup email saved successfully',
+      data: { backupEmail: user.backupEmail },
+    });
   } catch (error) {
     next(error);
   }

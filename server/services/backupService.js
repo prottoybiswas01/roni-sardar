@@ -308,8 +308,8 @@ export const dispatchEmail = async ({ settings, to, subject, html, attachments =
   }
 };
 
-// 8. Send Personalized Backup to a Specific User
-export const sendUserBackupEmail = async (userId, customRecipientEmail = null) => {
+// 8. Send Personalized Backup to a Specific User (Excel file delivery)
+export const sendUserBackupEmail = async (userId, customRecipientEmail = null, targetMonth = null, targetYear = null) => {
   const user = await User.findById(userId).lean();
   if (!user) throw new Error('User not found');
 
@@ -319,95 +319,97 @@ export const sendUserBackupEmail = async (userId, customRecipientEmail = null) =
   const settings = (await Settings.findOne().lean()) || {};
   const hospitalName = settings.hospitalName || 'Ad-din Akij Medical College Hospital';
 
-  const userRecords = await Record.find({ createdBy: userId }).sort({ date: 1, sl: 1 }).lean();
+  const filter = { createdBy: userId };
+  if (targetMonth && targetMonth !== 'all') {
+    filter.month = Number(targetMonth);
+  }
+  if (targetYear && targetYear !== 'all') {
+    filter.year = Number(targetYear);
+  }
+
+  const userRecords = await Record.find(filter).sort({ date: 1, sl: 1 }).lean();
   const dateStr = new Date().toISOString().split('T')[0];
   const nowDisplay = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
   // Calculate statistics
-  const currentMonth = new Date().getMonth() + 1;
-  const currentYear = new Date().getFullYear();
-  const thisMonthRecords = userRecords.filter((r) => r.month === currentMonth && r.year === currentYear);
-  const totalAmountThisMonth = thisMonthRecords.reduce((sum, r) => sum + (parseFloat(r.remark) || 0), 0);
+  const totalAmount = userRecords.reduce((sum, r) => sum + (parseFloat(r.remark) || 0), 0);
+  const monthLabel = targetMonth && targetMonth !== 'all' 
+    ? new Date(2000, Number(targetMonth) - 1, 1).toLocaleString('en-US', { month: 'long' }) + ` ${targetYear || ''}` 
+    : 'All Time Records';
 
-  // CSV attachment
+  // Excel CSV attachment (UTF-8 BOM so Bangla and numbers open perfectly in Excel)
   const csvContent = generateRecordsCSV(userRecords);
-
-  // User backup JSON
-  const userJsonBackup = JSON.stringify(
-    {
-      system: 'OverDuty Patient Record System',
-      backupType: 'User Personal Archive',
-      timestamp: new Date().toISOString(),
-      user: {
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
-      stats: {
-        totalAllTimeRecords: userRecords.length,
-        thisMonthRecords: thisMonthRecords.length,
-        thisMonthTotalRemark: totalAmountThisMonth,
-      },
-      records: userRecords,
-    },
-    null,
-    2
-  );
 
   const html = `
     <!DOCTYPE html>
     <html>
     <head><meta charset="utf-8"></head>
-    <body style="font-family: Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px; color: #1e293b;">
-      <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;">
-        <div style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 24px; color: #ffffff; text-align: center;">
-          <h1 style="margin: 0; font-size: 20px; font-weight: bold; letter-spacing: 0.5px;">🏥 ${hospitalName}</h1>
-          <p style="margin: 6px 0 0; font-size: 14px; opacity: 0.9;">Over Duty & Patient Records Daily Backup</p>
+    <body style="font-family: Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 20px; color: #1e293b;">
+      <div style="max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;">
+        <div style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 20px; color: #ffffff; text-align: center;">
+          <h1 style="margin: 0; font-size: 18px; font-weight: bold;">🏥 ${hospitalName}</h1>
+          <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.9;">Patient Records & Over Duty Excel Report</p>
         </div>
 
-        <div style="padding: 24px;">
-          <h2 style="font-size: 16px; color: #0f172a; margin-top: 0;">Hello ${user.name},</h2>
-          <p style="font-size: 14px; line-height: 1.6; color: #475569;">
-            Here is your daily automated clinical & over duty records backup. All your entered patient entries are securely archived in the attached spreadsheets.
+        <div style="padding: 20px;">
+          <h2 style="font-size: 15px; color: #0f172a; margin-top: 0;">Hello ${user.name},</h2>
+          <p style="font-size: 13px; line-height: 1.6; color: #475569;">
+            Attached is your requested patient records & over duty spreadsheet for <strong>${monthLabel}</strong>.
           </p>
 
-          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin: 16px 0;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
               <tr>
-                <td style="padding: 6px 0; color: #64748b;">Staff Member:</td>
-                <td style="padding: 6px 0; font-weight: bold; color: #0f172a; text-align: right;">${user.name}</td>
+                <td style="padding: 4px 0; color: #64748b;">Staff Member:</td>
+                <td style="padding: 4px 0; font-weight: bold; color: #0f172a; text-align: right;">${user.name}</td>
               </tr>
               <tr>
-                <td style="padding: 6px 0; color: #64748b;">Email Address:</td>
-                <td style="padding: 6px 0; font-weight: bold; color: #0f172a; text-align: right;">${user.email}</td>
+                <td style="padding: 4px 0; color: #64748b;">Report Period:</td>
+                <td style="padding: 4px 0; font-weight: bold; color: #0284c7; text-align: right;">${monthLabel}</td>
               </tr>
               <tr>
-                <td style="padding: 6px 0; color: #64748b;">Current Month Entries:</td>
-                <td style="padding: 6px 0; font-weight: bold; color: #0284c7; text-align: right;">${thisMonthRecords.length} patients</td>
+                <td style="padding: 4px 0; color: #64748b;">Total Patients:</td>
+                <td style="padding: 4px 0; font-weight: bold; color: #0f172a; text-align: right;">${userRecords.length} entries</td>
               </tr>
               <tr>
-                <td style="padding: 6px 0; color: #64748b;">Current Month Over Duty Sum:</td>
-                <td style="padding: 6px 0; font-weight: bold; color: #059669; text-align: right;">${totalAmountThisMonth.toLocaleString()}</td>
-              </tr>
-              <tr>
-                <td style="padding: 6px 0; color: #64748b;">All-Time Records Stored:</td>
-                <td style="padding: 6px 0; font-weight: bold; color: #0f172a; text-align: right;">${userRecords.length} records</td>
-              </tr>
-              <tr>
-                <td style="padding: 6px 0; color: #64748b;">Backup Timestamp:</td>
-                <td style="padding: 6px 0; font-weight: bold; color: #0f172a; text-align: right;">${nowDisplay}</td>
+                <td style="padding: 4px 0; color: #64748b;">Total Over Duty Amount:</td>
+                <td style="padding: 4px 0; font-weight: bold; color: #059669; text-align: right;">${totalAmount.toLocaleString()}</td>
               </tr>
             </table>
           </div>
 
-          <p style="font-size: 13px; color: #64748b; margin-bottom: 24px;">
-            📎 <strong>2 Attached Files:</strong><br>
-            1. <code>records-${user.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}-${dateStr}.csv</code> (Open directly in Microsoft Excel / Google Sheets)<br>
-            2. <code>user-archive-${dateStr}.json</code> (Raw JSON data backup)
+          <p style="font-size: 12px; color: #64748b; margin-bottom: 20px;">
+            📎 <strong>Attached File:</strong><br>
+            <code>records-${user.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}-${dateStr}.csv</code> (Open directly in Microsoft Excel / WPS / Google Sheets)
           </p>
         </div>
 
-        <div style="background-color: #f8fafc; padding: 16px; text-align: center; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8;">
+        <div style="background-color: #f8fafc; padding: 12px; text-align: center; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8;">
+          Sent automatically by OverDuty Pro System &copy; ${new Date().getFullYear()} ${hospitalName}
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const attachments = [
+    {
+      filename: `records-${user.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}-${dateStr}.csv`,
+      contentType: 'text/csv; charset=utf-8',
+      content: Buffer.from('\uFEFF' + csvContent, 'utf-8'),
+    },
+  ];
+
+  await dispatchEmail({
+    settings,
+    to: recipient,
+    subject: `🏥 Over Duty Excel Report (${monthLabel}) - ${user.name}`,
+    html,
+    attachments,
+  });
+
+  return { success: true, recipient, recordCount: userRecords.length };
+};
           Automated by OverDuty Pro System &copy; ${new Date().getFullYear()} ${hospitalName}
         </div>
       </div>

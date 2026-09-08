@@ -19,6 +19,13 @@ export const authApi = {
     return await apiClient('/auth/me');
   },
 
+  updateBackupEmail: async (backupEmail) => {
+    return await apiClient('/auth/backup-email', {
+      method: 'PUT',
+      body: JSON.stringify({ backupEmail }),
+    });
+  },
+
   getUsers: async () => {
     return await apiClient('/auth/users');
   },

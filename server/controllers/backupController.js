@@ -119,13 +119,18 @@ export const restoreBackup = async (req, res, next) => {
 // @access  Private
 export const triggerEmailBackup = async (req, res, next) => {
   try {
-    const { customRecipient, forSelfOnly } = req.body;
+    const { customRecipient, forSelfOnly, month, year } = req.body;
 
     if (forSelfOnly || req.user.role === 'staff') {
-      const result = await sendUserBackupEmail(req.user._id, customRecipient || req.user.email);
+      const result = await sendUserBackupEmail(
+        req.user._id,
+        customRecipient || req.user.backupEmail || req.user.email,
+        month,
+        year
+      );
       return res.status(200).json({
         success: true,
-        message: `Your personal patient records backup was delivered to ${result.recipient}!`,
+        message: `Your Excel patient records report was sent to ${result.recipient}!`,
         data: result,
       });
     }

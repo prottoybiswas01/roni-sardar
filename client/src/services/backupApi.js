@@ -5,10 +5,10 @@ export const backupApi = {
     return await apiClient('/backup/status');
   },
 
-  triggerEmailBackup: async ({ customRecipient = null, forSelfOnly = false } = {}) => {
+  triggerEmailBackup: async ({ customRecipient = null, forSelfOnly = false, month = null, year = null } = {}) => {
     return await apiClient('/backup/email-now', {
       method: 'POST',
-      body: JSON.stringify({ customRecipient, forSelfOnly }),
+      body: JSON.stringify({ customRecipient, forSelfOnly, month, year }),
     });
   },
 
