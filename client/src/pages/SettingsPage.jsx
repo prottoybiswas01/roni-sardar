@@ -50,7 +50,7 @@ import {
 export const SettingsPage = ({ initialTab = 'general' }) => {
   const toast = useToast();
   const { settings, updateSettings, isLoadingSettings, selectedMonth, selectedYear } = useSettings();
-  const { isAdmin, isSuperAdmin, user: currentUser } = useAuth();
+  const { isAdmin, isSuperAdmin, user: currentUser, refreshUser } = useAuth();
 
   const [activeTab, setActiveTab] = useState(initialTab);
 
@@ -229,6 +229,7 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
       setIsSavingEmail(true);
       const res = await authApi.updateBackupEmail(userBackupEmail.trim());
       toast.success(res.message || 'Backup email address saved successfully!');
+      await refreshUser?.();
       if (!isSuperAdmin) {
         setIsEmailLocked(true);
       }

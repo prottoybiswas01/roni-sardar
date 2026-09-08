@@ -11,9 +11,12 @@ import {
   User,
   Shield,
   ChevronDown,
+  Database,
+  Settings as SettingsIcon,
+  Mail,
 } from 'lucide-react';
 
-export const Header = ({ onToggleSidebar }) => {
+export const Header = ({ onToggleSidebar, onNavigate }) => {
   const { user, role, logout } = useAuth();
   const { settings, selectedMonth, selectedYear, setSelectedMonth, setSelectedYear } = useSettings();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -31,12 +34,21 @@ export const Header = ({ onToggleSidebar }) => {
 
   const getRoleBadge = (roleName) => {
     switch (roleName) {
+      case 'superadmin':
+        return 'bg-amber-100 text-amber-800 border-amber-300';
       case 'admin':
         return 'bg-purple-100 text-purple-700 border-purple-200';
       case 'manager':
         return 'bg-blue-100 text-blue-700 border-blue-200';
       default:
         return 'bg-slate-100 text-slate-700 border-slate-200';
+    }
+  };
+
+  const handleDropdownNavigate = (tabId) => {
+    setUserDropdownOpen(false);
+    if (onNavigate) {
+      onNavigate(tabId);
     }
   };
 
@@ -110,13 +122,18 @@ export const Header = ({ onToggleSidebar }) => {
 
               {/* User Dropdown */}
               {userDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-dropdown border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
-                  <div className="px-3.5 py-2 border-b border-slate-100">
-                    <p className="text-xs font-medium text-slate-500">Signed in as</p>
-                    <p className="text-xs font-bold text-slate-800 truncate">{user?.email}</p>
-                    <div className="mt-1.5">
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-dropdown border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-3.5 py-2.5 border-b border-slate-100">
+                    <p className="text-xs font-bold text-slate-800 truncate">{user?.name || 'Staff Member'}</p>
+                    <p className="text-[11px] text-slate-500 truncate">{user?.email}</p>
+                    {user?.backupEmail && user?.backupEmail !== user?.email && (
+                      <p className="text-[10px] text-emerald-600 flex items-center gap-1 mt-0.5 truncate">
+                        <Mail className="w-3 h-3 shrink-0" /> Backup: {user.backupEmail}
+                      </p>
+                    )}
+                    <div className="mt-2">
                       <span
-                        className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border capitalize ${getRoleBadge(
+                        className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border capitalize ${getRoleBadge(
                           role
                         )}`}
                       >
@@ -126,7 +143,27 @@ export const Header = ({ onToggleSidebar }) => {
                     </div>
                   </div>
 
-                  <div className="px-1 py-1">
+                  <div className="px-1 py-1 space-y-0.5">
+                    <button
+                      type="button"
+                      onClick={() => handleDropdownNavigate('backup')}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-brand-600 rounded-lg transition-colors"
+                    >
+                      <Database className="w-4 h-4 text-brand-600" />
+                      Backup & Recovery (AUTO)
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDropdownNavigate('settings')}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-brand-600 rounded-lg transition-colors"
+                    >
+                      <SettingsIcon className="w-4 h-4 text-slate-400" />
+                      Hospital Settings
+                    </button>
+                  </div>
+
+                  <div className="px-1 py-1 border-t border-slate-100">
                     <button
                       type="button"
                       onClick={() => {

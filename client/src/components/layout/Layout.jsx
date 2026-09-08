@@ -24,7 +24,7 @@ export const Layout = ({ activeTab, setActiveTab, children }) => {
           isCollapsed ? 'lg:pl-20' : 'lg:pl-64'
         }`}
       >
-        <Header onToggleSidebar={() => setIsMobileOpen(true)} />
+        <Header onToggleSidebar={() => setIsMobileOpen(true)} onNavigate={setActiveTab} />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           {children}
