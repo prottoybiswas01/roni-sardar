@@ -117,32 +117,27 @@ Copy `.env.example` in `server/`:
 cd server
 cp .env.example .env
 ```
-Ensure your `server/.env` contains:
+Ensure your `server/.env` contains your actual production keys (these must never be committed to Git):
 ```env
 PORT=5000
-MONGODB_URI=mongodb://127.0.0.1:27017/over_duty_db
-JWT_SECRET=your_super_secret_jwt_key_hospital_overduty_2026
+MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/over_duty_db?retryWrites=true&w=majority
+JWT_SECRET=your_super_strong_production_secret_key_here
 JWT_EXPIRES_IN=7d
-CORS_ORIGIN=http://localhost:5173
-NODE_ENV=development
+CORS_ORIGIN=https://roni-sardar.vercel.app
+NODE_ENV=production
 ```
 
 ---
 
 ## Running the Application
 
-### Development Mode (Concurrent Frontend & Backend)
+### Production & Development Mode
 From the root directory:
 ```bash
 npm run dev
 ```
 - Frontend: `http://localhost:5173`
 - Backend API: `http://localhost:5000`
-
-### Default Administrator Credentials
-On initial startup, if no users exist in the database, a default administrator account is automatically provisioned:
-- **Email**: `admin@hospital.local`
-- **Password**: `adminPassword123!`
 
 ---
 

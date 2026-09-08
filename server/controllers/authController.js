@@ -56,9 +56,10 @@ const generateOtp = () => {
 
 // Generate JWT token
 const generateToken = (id) => {
+  const jwtSecret = process.env.JWT_SECRET || 'secure_jwt_secret_duty_master_key_2026';
   return jwt.sign(
     { id },
-    process.env.JWT_SECRET || 'fallback_secret_hospital_overduty_2026',
+    jwtSecret,
     {
       expiresIn: process.env.JWT_EXPIRES_IN || '7d',
     }

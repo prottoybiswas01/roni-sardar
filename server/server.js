@@ -10,6 +10,7 @@ import fs from 'fs';
 
 import { connectDB } from './config/db.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { mongoSanitize, authRateLimiter } from './middleware/security.js';
 import { seedInitialAdmin } from './controllers/authController.js';
 import { initDailyBackupScheduler } from './services/backupService.js';
 
@@ -39,6 +40,11 @@ app.use(
   helmet({
     contentSecurityPolicy: false, // Allows flexible camera, inline styles and scripts in SPA
     crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+    frameguard: { action: 'sameorigin' },
+    noSniff: true,
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    hidePoweredBy: true,
   })
 );
 
@@ -49,7 +55,9 @@ if (process.env.NODE_ENV !== 'production') {
 
 // CORS setup
 const allowedOrigins = [
-  process.env.CORS_ORIGIN || 'http://localhost:5173',
+  process.env.CORS_ORIGIN || 'https://roni-sardar.vercel.app',
+  'https://roni-sardar.vercel.app',
+  'http://localhost:5173',
   'http://127.0.0.1:5173',
   'http://localhost:5000',
   'http://127.0.0.1:5000',
@@ -61,17 +69,24 @@ app.use(
       if (!origin || allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'production') {
         callback(null, true);
       } else {
-        callback(null, true); // Permissive in dev/self-hosted
+        callback(null, true);
       }
     },
     credentials: true,
   })
 );
 
-// Rate limiting for public and auth endpoints
+// Express JSON body parser with comfortable limit
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Enterprise NoSQL Injection Sanitization (strips malicious MongoDB query operators)
+app.use(mongoSanitize);
+
+// General API rate limiting (1000 requests per 15 minutes)
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // Limit each IP to 1000 requests per 15 minutes
+  windowMs: 15 * 60 * 1000,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -82,9 +97,12 @@ const apiLimiter = rateLimit({
 
 app.use('/api', apiLimiter);
 
-// Express JSON body parser with comfortable limit
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Strict rate limiting specifically for authentication routes (brute-force defense)
+app.use('/api/auth/login', authRateLimiter);
+app.use('/api/auth/verify-email-otp', authRateLimiter);
+app.use('/api/auth/verify-admin-otp', authRateLimiter);
+app.use('/api/auth/forgot-password', authRateLimiter);
+app.use('/api/auth/verify-reset-password', authRateLimiter);
 
 // API Healthcheck
 app.get('/api/health', (req, res) => {
@@ -93,6 +111,7 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     service: 'Hospital Over Duty / Patient Record Management API',
     version: '1.0.0',
+    environment: process.env.NODE_ENV || 'production',
   });
 });
 
