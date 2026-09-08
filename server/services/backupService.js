@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import tls from 'tls';
 import net from 'net';
+import { Resend } from 'resend';
 
 import Record from '../models/Record.js';
 import User from '../models/User.js';
@@ -89,39 +90,41 @@ export const saveLocalSnapshot = async () => {
   }
 };
 
-// 5. Resend API Email Sender (Modern, High-Deliverability, Zero npm dependency)
+// 5. Official Resend SDK Email Sender
 export const sendResendEmail = async ({ apiKey, from, to, subject, html, attachments = [] }) => {
   const resendApiKey = apiKey || process.env.RESEND_API_KEY;
   if (!resendApiKey) {
     throw new Error('Resend API Key is missing. Please configure it in .env (RESEND_API_KEY).');
   }
 
+  const resend = new Resend(resendApiKey.trim());
+
+  const formattedAttachments = attachments.map((att) => ({
+    filename: att.filename,
+    content: Buffer.isBuffer(att.content)
+      ? att.content
+      : Buffer.from(att.content || att.data || ''),
+  }));
+
   const payload = {
-    from: from || 'OverDuty Backup <onboarding@resend.dev>',
+    from: from || 'OverDuty Hospital Backup <backup@roni.kodl.uk>',
     to: Array.isArray(to) ? to : [to],
     subject,
     html,
-    attachments: attachments.map((att) => ({
-      filename: att.filename,
-      content: att.content ? att.content.toString('base64') : Buffer.from(att.data || '').toString('base64'),
-    })),
   };
 
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resendApiKey.trim()}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const resData = await response.json();
-  if (!response.ok) {
-    throw new Error(resData?.message || `Resend API error: HTTP ${response.status}`);
+  if (formattedAttachments.length > 0) {
+    payload.attachments = formattedAttachments;
   }
 
-  return resData;
+  const { data, error } = await resend.emails.send(payload);
+
+  if (error) {
+    console.error('[Resend SDK Error]:', error);
+    throw new Error(error.message || 'Failed to dispatch email via Resend');
+  }
+
+  return data;
 };
 
 // 6. Pure Node.js SMTP Sender (Fallback for Custom Domain / cPanel / Gmail SMTP)
