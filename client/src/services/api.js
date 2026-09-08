@@ -38,7 +38,9 @@ export const apiClient = async (endpoint, options = {}) => {
 
     if (!response.ok) {
       const errorMsg = data.message || `Request failed with status ${response.status}`;
-      throw new Error(errorMsg);
+      const error = new Error(errorMsg);
+      Object.assign(error, data);
+      throw error;
     }
 
     return data;

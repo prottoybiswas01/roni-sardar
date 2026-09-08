@@ -24,6 +24,7 @@ export const LoginPage = () => {
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [isAdmin2FAMode, setIsAdmin2FAMode] = useState(false);
+  const [isVerificationSuccess, setIsVerificationSuccess] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [verificationEmail, setVerificationEmail] = useState('');
   const [maskedEmail, setMaskedEmail] = useState('');
@@ -65,6 +66,7 @@ export const LoginPage = () => {
           toast.success(res.message || 'Verification code sent to your email!');
           setVerificationEmail(formData.email.trim().toLowerCase());
           setMaskedEmail(res.maskedEmail || formData.email);
+          setOtpCode('');
           setIsVerifyingOtp(true);
         } else {
           toast.success('Registration successful!');
@@ -83,10 +85,16 @@ export const LoginPage = () => {
         toast.success('Welcome back! Logged in successfully.');
       }
     } catch (err) {
-      if (err.requiresVerification && err.email) {
-        toast.warning(err.message || 'Please verify your email with OTP code');
-        setVerificationEmail(err.email);
-        setMaskedEmail(err.maskedEmail || err.email);
+      if (
+        err.requiresVerification ||
+        err.message?.includes('ভেরিফাই') ||
+        err.message?.includes('verify') ||
+        err.message?.includes('OTP')
+      ) {
+        toast.warning(err.message || 'অনুগ্রহ করে ইমেইলে পাওয়া ৬-সংখ্যার OTP কোডটি লিখুন।');
+        setVerificationEmail(err.email || formData.email.trim().toLowerCase());
+        setMaskedEmail(err.maskedEmail || err.email || formData.email);
+        setOtpCode('');
         setIsVerifyingOtp(true);
       } else {
         toast.error(err.message || 'Authentication failed. Please check credentials.');
@@ -107,6 +115,7 @@ export const LoginPage = () => {
     try {
       setIsLoading(true);
       await verifyAdminOtp(otpCode.trim(), verificationEmail);
+      setIsVerificationSuccess(true);
       toast.success('👑 সুপার অ্যাডমিন প্যানেলে স্বাগতম! (Super Admin Verified)');
     } catch (err) {
       toast.error(err.message || 'ভুল বা মেয়াদোত্তীর্ণ সিকিউরিটি কোড। পুনরায় চেষ্টা করুন।');
@@ -139,6 +148,7 @@ export const LoginPage = () => {
     try {
       setIsLoading(true);
       await verifyEmailOtp(verificationEmail, otpCode.trim());
+      setIsVerificationSuccess(true);
       toast.success('🎉 অ্যাকাউন্ট সফলভাবে ভেরিফাই ও সক্রিয় হয়েছে! স্বাগতম!');
     } catch (err) {
       toast.error(err.message || 'ভেরিফিকেশন ব্যর্থ হয়েছে। কোডটি সঠিক কিনা যাচাই করুন।');
@@ -183,8 +193,22 @@ export const LoginPage = () => {
 
         {/* Card Container */}
         <div className="mt-8 bg-slate-800/90 border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-xl p-6 sm:p-8">
-          {/* SCREEN 1: Super Admin 2FA Verification Screen */}
-          {isAdmin2FAMode ? (
+          {/* SUCCESS SCREEN: Verification Success Animation */}
+          {isVerificationSuccess ? (
+            <div className="space-y-4 py-6 text-center animate-in zoom-in-95 duration-300">
+              <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto border-2 border-emerald-400 shadow-xl shadow-emerald-500/30 animate-bounce">
+                <CheckCircle2 className="w-10 h-10" />
+              </div>
+              <h3 className="text-xl font-bold text-white">🎉 ভেরিফিকেশন সফল হয়েছে!</h3>
+              <p className="text-xs text-emerald-300 leading-relaxed">
+                আপনার অ্যাকাউন্ট সক্রিয় হয়েছে এবং সিস্টেমে প্রবেশ করা হচ্ছে...
+              </p>
+              <div className="flex justify-center pt-2">
+                <Loader2 className="w-6 h-6 animate-spin text-emerald-400" />
+              </div>
+            </div>
+          ) : isAdmin2FAMode ? (
+            /* SCREEN 1: Super Admin 2FA Verification Screen */
             <div className="space-y-5 animate-in fade-in duration-200">
               <div className="text-center space-y-2">
                 <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center mx-auto border border-amber-500/30 shadow-lg shadow-amber-500/10">
@@ -419,8 +443,27 @@ export const LoginPage = () => {
                 {isRegisterMode ? 'রেজিস্ট্রেশন করুন ও কোড পান' : 'Sign In to System'}
               </button>
 
+              {/* Quick OTP Verification Link for Unverified Users */}
+              {!isRegisterMode && (
+                <div className="pt-2 text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const emailTarget = formData.email.trim().toLowerCase();
+                      setVerificationEmail(emailTarget);
+                      setMaskedEmail(emailTarget);
+                      setOtpCode('');
+                      setIsVerifyingOtp(true);
+                    }}
+                    className="text-xs text-sky-400 hover:text-sky-300 font-medium transition-colors"
+                  >
+                    📩 ইমেইলে ওটিপি কোড এসেছে? এখানে ক্লিক করে ভেরিফাই করুন
+                  </button>
+                </div>
+              )}
+
               {/* Switch Mode Toggle */}
-              <div className="mt-6 pt-4 border-t border-slate-700/60 text-center">
+              <div className="mt-4 pt-4 border-t border-slate-700/60 text-center">
                 <button
                   type="button"
                   onClick={() => {
