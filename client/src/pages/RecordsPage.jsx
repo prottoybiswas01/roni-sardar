@@ -11,7 +11,8 @@ import { Modal } from '../components/common/Modal';
 import { DeleteRecordModal } from '../components/records/DeleteRecordModal';
 import { exportMonthlyReportToExcel } from '../services/excelService';
 import { exportMonthlyReportToPDF } from '../services/pdfService';
-import { PlusCircle, Camera, Download, FileSpreadsheet, FileType } from 'lucide-react';
+import { PlusCircle, Camera, Download, FileSpreadsheet, FileType, Share2 } from 'lucide-react';
+import { ShareReportModal } from '../components/reports/ShareReportModal';
 
 export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
   const toast = useToast();
@@ -23,6 +24,7 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDate, setFilterDate] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('me');
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [userList, setUserList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -217,6 +219,17 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
 
           <button
             type="button"
+            disabled={records.length === 0}
+            onClick={() => setIsShareModalOpen(true)}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-md transition-all active:scale-95 disabled:opacity-40"
+            title="ইমেইলে রিপোর্ট পাঠান (দোকানদার / প্রিন্ট / বসের ঠিকানায়)"
+          >
+            <Share2 className="w-4 h-4" />
+            Share / Email
+          </button>
+
+          <button
+            type="button"
             disabled={isPaused}
             onClick={() => {
               if (isPaused) {
@@ -287,6 +300,14 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
         onClose={() => setDeletingRecord(null)}
         onConfirm={handleDeleteConfirm}
         isLoading={isDeleting}
+      />
+
+      {/* Share / Email Report Modal */}
+      <ShareReportModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        initialMonth={selectedMonth}
+        initialYear={selectedYear}
       />
     </div>
   );

@@ -5,6 +5,7 @@ import {
   PlusCircle,
   FileSpreadsheet,
   FileText,
+  Share2,
   Settings,
   Users,
   Database,
@@ -22,6 +23,7 @@ export const Sidebar = ({
   setIsMobileOpen,
   isCollapsed,
   setIsCollapsed,
+  onOpenShare,
 }) => {
   const { role, isAdmin } = useAuth();
 
@@ -46,6 +48,12 @@ export const Sidebar = ({
       id: 'reports',
       label: 'Monthly Reports',
       icon: FileText,
+    },
+    {
+      id: 'share',
+      label: 'Share / Print (শেয়ার)',
+      icon: Share2,
+      badge: 'MAIL',
     },
     {
       id: 'backup',
@@ -75,6 +83,13 @@ export const Sidebar = ({
   ];
 
   const handleNavClick = (tabId) => {
+    if (tabId === 'share' && onOpenShare) {
+      onOpenShare();
+      if (isMobileOpen) {
+        setIsMobileOpen(false);
+      }
+      return;
+    }
     setActiveTab(tabId);
     if (isMobileOpen) {
       setIsMobileOpen(false);

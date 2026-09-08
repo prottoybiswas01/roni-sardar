@@ -16,6 +16,7 @@ import { CameraScannerModal } from './components/camera/CameraScannerModal';
 import { OCRReviewModal } from './components/camera/OCRReviewModal';
 import { Modal } from './components/common/Modal';
 import { RecordForm } from './components/records/RecordForm';
+import { ShareReportModal } from './components/reports/ShareReportModal';
 
 const MainApplication = () => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -28,6 +29,7 @@ const MainApplication = () => {
   const [ocrReviewData, setOcrReviewData] = useState(null);
   const [prefilledRecordData, setPrefilledRecordData] = useState(null);
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -69,11 +71,16 @@ const MainApplication = () => {
 
   return (
     <>
-      <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
+      <Layout
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onOpenShare={() => setIsShareModalOpen(true)}
+      >
         {activeTab === 'dashboard' && (
           <Dashboard
             onNavigate={(tab) => setActiveTab(tab)}
             onOpenScanner={() => setIsScannerOpen(true)}
+            onOpenShare={() => setIsShareModalOpen(true)}
           />
         )}
 
@@ -104,6 +111,12 @@ const MainApplication = () => {
 
         {activeTab === 'backup' && <SettingsPage initialTab="backup" />}
       </Layout>
+
+      {/* Global Share / Print Report Email Modal */}
+      <ShareReportModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+      />
 
       {/* Global Camera Scanner Modal */}
       <CameraScannerModal

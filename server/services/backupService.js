@@ -831,3 +831,231 @@ export const initDailyBackupScheduler = () => {
 
   console.log('[Scheduler] Daily midnight & monthly closing automated backup scheduler initialized.');
 };
+
+// 13. Send On-Demand Share / Print / Boss Export Email with PDF & Excel
+export const sendShareReportEmail = async ({
+  userId,
+  targetUserId = null,
+  recipientEmail,
+  recipientName = '',
+  targetMonth = null,
+  targetYear = null,
+  format = 'pdf', // 'pdf' | 'excel' | 'both'
+  customNote = '',
+}) => {
+  if (!recipientEmail || !recipientEmail.trim()) {
+    throw new Error('Recipient email address is required (প্রাপকের ইমেইল আবশ্যক)');
+  }
+
+  const senderUser = await User.findById(userId).lean();
+  if (!senderUser) throw new Error('Sender user not found');
+
+  // If superadmin targeted another user, fetch that user's records
+  const targetUser = targetUserId ? (await User.findById(targetUserId).lean()) || senderUser : senderUser;
+
+  const settings = (await Settings.findOne().lean()) || {};
+  const hospitalName = settings.hospitalName || 'Ad-din Akij Medical College Hospital';
+  const location = settings.location || 'Clinical Wards';
+
+  const filter = { createdBy: targetUser._id, isDeleted: { $ne: true } };
+  if (targetMonth && targetMonth !== 'all') {
+    filter.month = Number(targetMonth);
+  }
+  if (targetYear && targetYear !== 'all') {
+    filter.year = Number(targetYear);
+  }
+
+  const userRecords = await Record.find(filter).sort({ date: 1, sl: 1 }).lean();
+  const totalEntries = userRecords.length;
+  const uniquePatients = new Set(userRecords.map((r) => String(r.patientId || '').trim()).filter(Boolean)).size;
+  const totalAmount = userRecords.reduce((sum, r) => {
+    const val = parseFloat(String(r.remark || '0').replace(/[^0-9.-]+/g, '')) || 0;
+    return sum + val;
+  }, 0);
+
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  const monthLabel = targetMonth && targetMonth !== 'all'
+    ? `${monthNames[Number(targetMonth) - 1] || 'Month ' + targetMonth} ${targetYear || ''}`
+    : 'Cumulative All-Time Records (সকল রেকর্ড)';
+
+  const safeStaffSlug = (targetUser.username || targetUser.name || 'staff').toLowerCase().replace(/[^a-z0-9]/g, '_');
+  const safeMonthSlug = (targetMonth && targetMonth !== 'all' ? `${targetYear}_m${targetMonth}` : 'all_records');
+
+  const attachments = [];
+
+  // Generate PDF if requested
+  if (format === 'pdf' || format === 'both') {
+    try {
+      const pdfBuffer = await generateMonthlyRecordsPDF({
+        records: userRecords,
+        staffName: targetUser.name,
+        hospitalName,
+        location,
+        month: targetMonth,
+        year: targetYear,
+        totalAmount,
+      });
+      if (pdfBuffer) {
+        attachments.push({
+          filename: `OverDuty_Statement_${safeStaffSlug}_${safeMonthSlug}.pdf`,
+          contentType: 'application/pdf',
+          content: pdfBuffer,
+        });
+      }
+    } catch (pdfErr) {
+      console.error('[Share PDF Gen Error]:', pdfErr.message);
+    }
+  }
+
+  // Generate Excel if requested
+  if (format === 'excel' || format === 'both') {
+    try {
+      const excelBuffer = await generateMonthlyRecordsExcelBuffer({
+        records: userRecords,
+        hospitalName,
+        location,
+        month: targetMonth,
+        year: targetYear,
+      });
+      if (excelBuffer) {
+        attachments.push({
+          filename: `OverDuty_Records_${safeStaffSlug}_${safeMonthSlug}.xlsx`,
+          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          content: excelBuffer,
+        });
+      }
+    } catch (excelErr) {
+      console.error('[Share Excel Gen Error]:', excelErr.message);
+    }
+  }
+
+  if (attachments.length === 0) {
+    throw new Error('Failed to generate report attachments. Please check if records exist.');
+  }
+
+  const subject = `🏥 [OverDuty Report] ${monthLabel} — ${targetUser.name} (${totalEntries} Entries | Tk. ${totalAmount.toLocaleString()})`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="bn">
+    <head><meta charset="utf-8"></head>
+    <body style="font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px; color: #1e293b;">
+      <div style="max-width: 620px; margin: 0 auto; background: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.07); border: 1px solid #e2e8f0;">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 24px 28px; color: #ffffff; text-align: center;">
+          <h1 style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.3px;">🏥 ${hospitalName}</h1>
+          <p style="margin: 6px 0 0; font-size: 13px; color: #e0f2fe;">OverDuty Pro Clinical Records — Official Statement & Share</p>
+        </div>
+
+        <!-- Content -->
+        <div style="padding: 26px 28px;">
+          ${recipientName ? `<h2 style="font-size: 16px; color: #0f172a; margin-top: 0;">সম্মানিত ${recipientName},</h2>` : `<h2 style="font-size: 16px; color: #0f172a; margin-top: 0;">আসসালামু আলাইকুম / Greetings,</h2>`}
+          
+          <p style="font-size: 13.5px; line-height: 1.6; color: #475569; margin-bottom: 20px;">
+            <strong>${targetUser.name}</strong> (${targetUser.role === 'superadmin' ? 'Super Admin' : 'Medical Staff / Doctor'}) আপনার সাথে <strong>${monthLabel}</strong> পর্বের ওভার ডিউটি রিপোর্ট শেয়ার করেছেন। নিচে সংক্ষিপ্ত বিবরণ দেওয়া হলো এবং সাথে <strong>${format === 'both' ? 'PDF ও Excel উভয় ফাইল' : format.toUpperCase() + ' ফাইল'}</strong> সংযুক্ত রয়েছে।
+          </p>
+
+          ${
+            customNote && customNote.trim()
+              ? `
+              <div style="background-color: #fefce8; border-left: 4px solid #eab308; padding: 12px 16px; border-radius: 6px; margin-bottom: 20px;">
+                <p style="margin: 0; font-size: 12px; font-weight: bold; color: #854d0e; text-transform: uppercase;">
+                  📝 প্রেরকের বিশেষ নোট / বার্তা (Sender's Note):
+                </p>
+                <p style="margin: 4px 0 0; font-size: 13.5px; color: #713f12; font-style: italic;">
+                  "${customNote.trim()}"
+                </p>
+              </div>
+              `
+              : ''
+          }
+
+          <!-- Metric Highlights Grid -->
+          <table width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 20px;">
+            <tr>
+              <td width="48%" style="padding: 12px 14px; background-color: #f1f5f9; border-radius: 10px; border: 1px solid #e2e8f0;">
+                <span style="font-size: 10.5px; font-weight: bold; color: #64748b; text-transform: uppercase;">মোট পেশেন্ট এন্ট্রি</span>
+                <div style="font-size: 18px; font-weight: bold; color: #0f172a; margin-top: 4px;">${totalEntries} টি</div>
+              </td>
+              <td width="4%"></td>
+              <td width="48%" style="padding: 12px 14px; background-color: #e0f2fe; border-radius: 10px; border: 1px solid #bae6fd;">
+                <span style="font-size: 10.5px; font-weight: bold; color: #0369a1; text-transform: uppercase;">ইউনিক পেশেন্ট</span>
+                <div style="font-size: 18px; font-weight: bold; color: #0284c7; margin-top: 4px;">${uniquePatients} জন</div>
+              </td>
+            </tr>
+            <tr><td height="10" colspan="3"></td></tr>
+            <tr>
+              <td width="48%" style="padding: 12px 14px; background-color: #dcfce7; border-radius: 10px; border: 1px solid #bbf7d0;">
+                <span style="font-size: 10.5px; font-weight: bold; color: #166534; text-transform: uppercase;">মোট টাকা (Remark)</span>
+                <div style="font-size: 18px; font-weight: bold; color: #16a34a; margin-top: 4px;">Tk. ${totalAmount.toLocaleString()}</div>
+              </td>
+              <td width="4%"></td>
+              <td width="48%" style="padding: 12px 14px; background-color: #f3e8ff; border-radius: 10px; border: 1px solid #e9d5ff;">
+                <span style="font-size: 10.5px; font-weight: bold; color: #6b21a8; text-transform: uppercase;">রিপোর্ট সময়কাল</span>
+                <div style="font-size: 14px; font-weight: bold; color: #7c3aed; margin-top: 4px;">${monthLabel}</div>
+              </td>
+            </tr>
+          </table>
+
+          <!-- Printing / Action Instructions -->
+          <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 14px 16px; margin-bottom: 20px;">
+            <p style="margin: 0 0 4px; font-size: 12.5px; font-weight: bold; color: #166534;">
+              🖨️ প্রিন্ট করার নির্দেশাবলী (Instructions for Printing):
+            </p>
+            <p style="margin: 0; font-size: 12px; color: #15803d; line-height: 1.5;">
+              দোকানদার বা প্রিন্ট অপারেটরের জন্য: সংযুক্ত PDF ফাইলটি ওপেন করে সরাসরি <strong>A4 সাইজের পেপারে (Portrait)</strong> প্রিন্ট দিন।
+            </p>
+          </div>
+
+          <!-- Attachments List -->
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; margin-bottom: 20px;">
+            <p style="margin: 0 0 8px; font-size: 11.5px; font-weight: bold; color: #475569; text-transform: uppercase;">
+              📎 সংযুক্ত ফাইল (Attachments):
+            </p>
+            ${attachments
+              .map(
+                (att) => `
+              <div style="display: flex; align-items: center; margin: 4px 0; font-size: 12.5px; color: #1e293b;">
+                📄 <strong>${att.filename}</strong> (${att.contentType === 'application/pdf' ? 'A4 Printable PDF' : 'Excel Spreadsheet'})
+              </div>`
+              )
+              .join('')}
+          </div>
+
+          <div style="border-top: 1px solid #e2e8f0; padding-top: 16px; font-size: 11.5px; color: #64748b; line-height: 1.5;">
+            <p style="margin: 0;"><strong>প্রেরক:</strong> ${targetUser.name} (${targetUser.email})</p>
+            <p style="margin: 2px 0 0;"><strong>সিস্টেম:</strong> OverDuty Pro Administrative & Patient Records System</p>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #f8fafc; padding: 14px 28px; text-align: center; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8;">
+          © ${new Date().getFullYear()} ${hospitalName}. All rights reserved.
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  await dispatchEmail({
+    settings,
+    to: recipientEmail.trim(),
+    subject,
+    html,
+    attachments,
+  });
+
+  return {
+    success: true,
+    recipient: recipientEmail.trim(),
+    format,
+    monthLabel,
+    totalEntries,
+    totalAmount,
+    attachmentsCount: attachments.length,
+  };
+};

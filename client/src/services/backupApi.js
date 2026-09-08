@@ -12,6 +12,13 @@ export const backupApi = {
     });
   },
 
+  shareReport: async ({ recipientEmail, recipientName, month, year, format, customNote, targetUserId }) => {
+    return await apiClient('/backup/share-report', {
+      method: 'POST',
+      body: JSON.stringify({ recipientEmail, recipientName, month, year, format, customNote, targetUserId }),
+    });
+  },
+
   testEmailSettings: async (smtpData) => {
     return await apiClient('/backup/test-email', {
       method: 'POST',

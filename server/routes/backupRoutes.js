@@ -5,6 +5,7 @@ import {
   restoreBackup,
   triggerEmailBackup,
   testEmailSettings,
+  shareReport,
 } from '../controllers/backupController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -12,8 +13,9 @@ const router = express.Router();
 
 router.use(protect);
 
-// Allow all authenticated staff to trigger their email backup for themselves
+// Allow all authenticated staff to trigger their email backup or share report via email
 router.post('/email-now', triggerEmailBackup);
+router.post('/share-report', shareReport);
 
 // Admin-only operations:
 router.use(authorize('superadmin', 'admin'));

@@ -4,7 +4,7 @@ import { Header } from './Header';
 import { useAuth } from '../../context/AuthContext';
 import { AlertTriangle, PauseCircle } from 'lucide-react';
 
-export const Layout = ({ activeTab, setActiveTab, children }) => {
+export const Layout = ({ activeTab, setActiveTab, onOpenShare, children }) => {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { isPaused, user } = useAuth();
@@ -19,6 +19,7 @@ export const Layout = ({ activeTab, setActiveTab, children }) => {
         setIsMobileOpen={setIsMobileOpen}
         isCollapsed={isCollapsed}
         setIsCollapsed={setIsCollapsed}
+        onOpenShare={onOpenShare}
       />
 
       {/* Main Content Area */}

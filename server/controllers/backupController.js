@@ -8,6 +8,7 @@ import {
   sendUserBackupEmail,
   restoreDatabaseFromJson,
   dispatchEmail,
+  sendShareReportEmail,
 } from '../services/backupService.js';
 import Settings from '../models/Settings.js';
 import Record from '../models/Record.js';
@@ -192,6 +193,53 @@ export const testEmailSettings = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: `Test email successfully delivered to ${to}!`,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Share OverDuty report (PDF / Excel) via Email to shopkeeper, boss, or external recipient
+// @route   POST /api/backup/share-report
+// @access  Private
+export const shareReport = async (req, res, next) => {
+  try {
+    const {
+      recipientEmail,
+      recipientName,
+      month,
+      year,
+      format, // 'pdf' | 'excel' | 'both'
+      customNote,
+      targetUserId,
+    } = req.body;
+
+    if (!recipientEmail || !recipientEmail.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'অনুগ্রহ করে প্রাপকের ইমেইল অ্যাড্রেস প্রদান করুন। (Recipient email is required)',
+      });
+    }
+
+    // Only superadmin can share another user's records; staff can only share their own
+    const effectiveTargetUserId =
+      req.user.role === 'superadmin' && targetUserId ? targetUserId : req.user._id;
+
+    const result = await sendShareReportEmail({
+      userId: req.user._id,
+      targetUserId: effectiveTargetUserId,
+      recipientEmail: recipientEmail.trim(),
+      recipientName: (recipientName || '').trim(),
+      targetMonth: month,
+      targetYear: year,
+      format: format || 'pdf',
+      customNote: (customNote || '').trim(),
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `রিপোর্টটি সফলভাবে ${result.recipient} ঠিকানায় পাঠানো হয়েছে! (${(result.format || 'pdf').toUpperCase()} ফরম্যাট)`,
+      data: result,
     });
   } catch (error) {
     next(error);
