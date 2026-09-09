@@ -273,23 +273,21 @@ export const RecordForm = ({
           </p>
         </div>
 
-        {/* Patient ID - Strictly Numbers preserving leading zeroes */}
+        {/* Patient ID - Strictly Numbers */}
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
-            <span className="flex items-center gap-1.5">
-              <Hash className="w-3.5 h-3.5 text-brand-600" />
-              Patient ID <span className="text-rose-500">*</span>
-            </span>
-            <span className="text-[10px] text-slate-400 font-normal">Numbers only (preserves leading zeros)</span>
+          <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+            <Hash className="w-3.5 h-3.5 text-brand-600" />
+            Patient ID <span className="text-rose-500">*</span>
           </label>
           <input
             type="text"
             inputMode="numeric"
             pattern="[0-9]*"
+            autoComplete="off"
             name="patientId"
             value={formData.patientId}
             onChange={handleChange}
-            placeholder="e.g. 001234 or 250474"
+            placeholder="e.g. 001234 or 260481"
             className={`w-full rounded-lg border font-mono px-3 py-2 text-sm text-slate-900 focus-ring ${
               errors.patientId ? 'border-rose-300 bg-rose-50/40' : 'border-slate-300'
             }`}
@@ -307,6 +305,9 @@ export const RecordForm = ({
           </label>
           <input
             type="text"
+            inputMode="text"
+            autoCapitalize="characters"
+            autoComplete="off"
             name="patientName"
             value={formData.patientName}
             onChange={handleChange}
@@ -438,7 +439,7 @@ export const RecordForm = ({
             <button
               type="button"
               onClick={onOpenScanner}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-sky-50 text-sky-800 border border-sky-200 hover:bg-sky-100 text-xs font-semibold transition-colors focus-ring"
+              className="md:hidden inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-sky-50 text-sky-800 border border-sky-200 hover:bg-sky-100 text-xs font-semibold transition-colors focus-ring"
             >
               <Camera className="w-4 h-4 text-sky-600" />
               Scan with Camera

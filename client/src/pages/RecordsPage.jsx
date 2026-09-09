@@ -206,7 +206,7 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
               }
               onOpenScanner();
             }}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-sky-50 text-sky-800 border border-sky-200 hover:bg-sky-100 text-xs font-semibold shadow-subtle transition-colors disabled:opacity-40"
+            className="md:hidden inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-sky-50 text-sky-800 border border-sky-200 hover:bg-sky-100 text-xs font-semibold shadow-subtle transition-colors disabled:opacity-40"
             title={isPaused ? 'অ্যাকাউন্ট স্থগিত রয়েছে' : undefined}
           >
             <Camera className="w-4 h-4 text-sky-600" />

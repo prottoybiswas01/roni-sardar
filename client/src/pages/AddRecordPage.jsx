@@ -25,11 +25,11 @@ export const AddRecordPage = ({ onOpenScanner, onRecordSaved, onCancel }) => {
           </p>
         </div>
 
-        {/* OCR Action */}
+        {/* OCR Action - Hidden on desktop, visible on mobile */}
         <button
           type="button"
           onClick={onOpenScanner}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 text-xs font-semibold shadow-subtle transition-all self-start sm:self-auto"
+          className="md:hidden inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 text-xs font-semibold shadow-subtle transition-all self-start sm:self-auto"
         >
           <Camera className="w-4 h-4 text-sky-600" />
           Scan Document with Camera

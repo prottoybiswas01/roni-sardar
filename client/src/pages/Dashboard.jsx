@@ -124,7 +124,7 @@ export const Dashboard = ({ onNavigate, onOpenScanner }) => {
                 }
                 onOpenScanner();
               }}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-sm border border-white/10 transition-all active:scale-95 disabled:opacity-40"
+              className="md:hidden inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-sm border border-white/10 transition-all active:scale-95 disabled:opacity-40"
               title={isPaused ? 'অ্যাকাউন্ট স্থগিত রয়েছে' : undefined}
             >
               <Camera className="w-4 h-4 text-sky-400" />
