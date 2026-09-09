@@ -60,8 +60,8 @@ export const generateUserBackupData = async (userId) => {
   };
 };
 
-// 3. Re-export Excel & CSV generators
-export { generateMonthlyRecordsExcelBuffer, generateRecordsCSV };
+// 3. Re-export PDF, Excel & CSV generators
+export { generateMonthlyRecordsPDF, generateMonthlyRecordsExcelBuffer, generateRecordsCSV };
 
 // 4. Save Local File Snapshot
 export const saveLocalSnapshot = async () => {

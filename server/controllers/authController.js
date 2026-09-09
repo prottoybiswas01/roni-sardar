@@ -2,11 +2,9 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Record from '../models/Record.js';
 import Settings from '../models/Settings.js';
-import {
-  dispatchEmail,
-  generateMonthlyRecordsPDF,
-  generateMonthlyRecordsExcelBuffer,
-} from '../services/backupService.js';
+import { dispatchEmail } from '../services/backupService.js';
+import { generateMonthlyRecordsPDF } from '../services/pdfGenerator.js';
+import { generateMonthlyRecordsExcelBuffer } from '../services/excelGenerator.js';
 
 // Primary Super Administrator Email for 2FA and System Security Alerts
 export const PRIMARY_SUPERADMIN_EMAIL = 'prottoybiswas575358@gmail.com';
