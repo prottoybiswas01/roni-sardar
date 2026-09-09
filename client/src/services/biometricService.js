@@ -10,7 +10,22 @@ const bufferToBase64Url = (buffer) => {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 };
 
-// Helper: Convert Base64URL / string to Uint8Array buffer
+// Helper: Convert Base64URL string back to ArrayBuffer
+const base64UrlToBuffer = (base64url) => {
+  if (!base64url) return new Uint8Array(0).buffer;
+  let base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4 !== 0) {
+    base64 += '=';
+  }
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+};
+
+// Helper: Convert regular string to Uint8Array buffer
 const stringToBuffer = (str) => {
   return Uint8Array.from(str, (c) => c.charCodeAt(0));
 };
@@ -33,7 +48,6 @@ export const biometricService = {
    */
   isSupported: async () => {
     try {
-      if (!biometricService.isMobileDevice()) return false;
       if (!window.PublicKeyCredential) return false;
       if (typeof window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === 'function') {
         const available = await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
@@ -46,7 +60,7 @@ export const biometricService = {
   },
 
   /**
-   * Register and link current phone/PC fingerprint to the logged-in account
+   * Register and link current phone fingerprint to the logged-in account
    */
   registerDevice: async (customDeviceName = '') => {
     const isAvail = await biometricService.isSupported();
@@ -68,58 +82,63 @@ export const biometricService = {
     // Detect device label
     let detectedName = customDeviceName;
     if (!detectedName) {
-      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-      if (/Android/i.test(navigator.userAgent)) detectedName = '📱 Android Fingerprint';
-      else if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) detectedName = '📱 Apple Touch ID / Face ID';
-      else if (/Windows/i.test(navigator.userAgent)) detectedName = '💻 Windows Hello Biometrics';
-      else if (/Mac/i.test(navigator.userAgent)) detectedName = '💻 Mac Touch ID';
-      else detectedName = isMobile ? '📱 Mobile Biometrics' : '💻 Browser Biometrics';
+      if (/Android/i.test(navigator.userAgent)) detectedName = '📱 Android Phone Fingerprint';
+      else if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) detectedName = '📱 iPhone Touch ID / Face ID';
+      else detectedName = '📱 Mobile Phone Fingerprint';
     }
 
     // 2. Call Native WebAuthn API on Device
     const challengeBuffer = stringToBuffer(challenge);
     const userIdBuffer = stringToBuffer(user.id);
 
-    const credential = await navigator.credentials.create({
-      publicKey: {
-        challenge: challengeBuffer,
-        rp: {
-          name: 'OverDuty Hospital Pro',
-          id: window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname,
+    try {
+      const credential = await navigator.credentials.create({
+        publicKey: {
+          challenge: challengeBuffer,
+          rp: {
+            name: 'OverDuty Hospital Pro',
+            id: window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname,
+          },
+          user: {
+            id: userIdBuffer,
+            name: user.name,
+            displayName: user.displayName,
+          },
+          pubKeyCredParams: [
+            { alg: -7, type: 'public-key' }, // ES256
+            { alg: -257, type: 'public-key' }, // RS256
+          ],
+          authenticatorSelection: {
+            authenticatorAttachment: 'platform',
+            userVerification: 'preferred',
+            residentKey: 'preferred',
+          },
+          timeout: 60000,
+          attestation: 'none',
         },
-        user: {
-          id: userIdBuffer,
-          name: user.name,
-          displayName: user.displayName,
-        },
-        pubKeyCredParams: [
-          { alg: -7, type: 'public-key' }, // ES256
-          { alg: -257, type: 'public-key' }, // RS256
-        ],
-        authenticatorSelection: {
-          authenticatorAttachment: 'platform',
-          userVerification: 'preferred',
-        },
-        timeout: 60000,
-        attestation: 'none',
-      },
-    });
+      });
 
-    if (!credential) {
-      throw new Error('বায়োমেট্রিক স্ক্যান সম্পন্ন করা যায়নি।');
+      if (!credential) {
+        throw new Error('বায়োমেট্রিক স্ক্যান সম্পন্ন করা যায়নি।');
+      }
+
+      const rawIdBase64 = bufferToBase64Url(credential.rawId);
+
+      // 3. Verify and Save on Server
+      return await apiClient('/auth/biometrics/verify-registration', {
+        method: 'POST',
+        body: JSON.stringify({
+          credentialId: rawIdBase64,
+          publicKey: credential.id || rawIdBase64,
+          deviceName: detectedName,
+        }),
+      });
+    } catch (err) {
+      if (err.name === 'NotAllowedError') {
+        throw new Error('ফিঙ্গারপ্রিন্ট স্ক্যান বাতিল করা হয়েছে। পুনরায় চেষ্টা করুন।');
+      }
+      throw err;
     }
-
-    const rawIdBase64 = bufferToBase64Url(credential.rawId);
-
-    // 3. Verify and Save on Server
-    return await apiClient('/auth/biometrics/verify-registration', {
-      method: 'POST',
-      body: JSON.stringify({
-        credentialId: rawIdBase64,
-        publicKey: credential.id || rawIdBase64,
-        deviceName: detectedName,
-      }),
-    });
   },
 
   /**
@@ -141,6 +160,12 @@ export const biometricService = {
     }
 
     const { challenge, allowCredentials } = optionsRes.data;
+
+    // Check if any biometric credential exists in database
+    if (!Array.isArray(allowCredentials) || allowCredentials.length === 0) {
+      throw new Error('⚠️ এই ফোনে এখনও কোনো ফিঙ্গারপ্রিন্ট যুক্ত করা হয়নি। প্রথমে পাসওয়ার্ড দিয়ে লগইন করে Settings ➔ Biometric & 2FA Login-এ গিয়ে "ফিঙ্গারপ্রিন্ট যুক্ত করুন" বাটনে চাপ দিন।');
+    }
+
     const challengeBuffer = stringToBuffer(challenge);
 
     // 2. Trigger native device fingerprint / Face ID prompt
@@ -149,32 +174,36 @@ export const biometricService = {
       rpId: window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname,
       userVerification: 'preferred',
       timeout: 60000,
+      allowCredentials: allowCredentials.map((credId) => ({
+        id: base64UrlToBuffer(credId),
+        type: 'public-key',
+      })),
     };
 
-    if (Array.isArray(allowCredentials) && allowCredentials.length > 0) {
-      publicKeyOpts.allowCredentials = allowCredentials.map((credId) => ({
-        id: stringToBuffer(atob(credId.replace(/-/g, '+').replace(/_/g, '/'))),
-        type: 'public-key',
-      }));
+    try {
+      const assertion = await navigator.credentials.get({
+        publicKey: publicKeyOpts,
+      });
+
+      if (!assertion) {
+        throw new Error('বায়োমেট্রিক ভেরিফিকেশন বাতিল করা হয়েছে।');
+      }
+
+      const rawIdBase64 = bufferToBase64Url(assertion.rawId);
+
+      // 3. Verify Assertion and Log In
+      return await apiClient('/auth/biometrics/verify-login', {
+        method: 'POST',
+        body: JSON.stringify({
+          credentialId: rawIdBase64,
+        }),
+      });
+    } catch (err) {
+      if (err.name === 'NotAllowedError' || err.message?.includes('timed out') || err.message?.includes('not allowed')) {
+        throw new Error('⚠️ এই ফোনে এখনও আপনার ফিঙ্গারপ্রিন্ট যুক্ত করা হয়নি। অনুগ্রহ করে প্রথমে পাসওয়ার্ড দিয়ে লগইন করে Settings থেকে "ফিঙ্গারপ্রিন্ট যুক্ত করুন" বাটনে ক্লিক করুন।');
+      }
+      throw err;
     }
-
-    const assertion = await navigator.credentials.get({
-      publicKey: publicKeyOpts,
-    });
-
-    if (!assertion) {
-      throw new Error('বায়োমেট্রিক ভেরিফিকেশন বাতিল করা হয়েছে।');
-    }
-
-    const rawIdBase64 = bufferToBase64Url(assertion.rawId);
-
-    // 3. Verify Assertion and Log In
-    return await apiClient('/auth/biometrics/verify-login', {
-      method: 'POST',
-      body: JSON.stringify({
-        credentialId: rawIdBase64,
-      }),
-    });
   },
 
   /**
