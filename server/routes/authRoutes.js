@@ -53,9 +53,9 @@ router.get('/biometrics/devices', protect, getBiometricDevices);
 router.delete('/biometrics/:credentialId', protect, deleteBiometricDevice);
 router.put('/toggle-admin-2fa', protect, authorize('admin', 'superadmin'), toggleAdmin2FA);
 
-// Super Admin / Admin User Management Routes
+// Super Admin / Admin / User Management Routes
 router.get('/users', protect, authorize('admin', 'superadmin'), getUsers);
-router.put('/users/:id', protect, authorize('admin', 'superadmin'), updateUser);
+router.put('/users/:id', protect, updateUser);
 router.delete('/users/:id', protect, authorize('superadmin'), deleteUser);
 
 // Super Admin OTP-Protected User Deletion Routes

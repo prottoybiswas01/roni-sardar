@@ -910,18 +910,28 @@ export const getUsers = async (req, res, next) => {
   }
 };
 
-// @desc    Update user status, role, or backup preferences (Super Admin & Admin only)
+// @desc    Update user profile, status, role, or backup preferences
 // @route   PUT /api/auth/users/:id
-// @access  Private/Admin/SuperAdmin
+// @access  Private
 export const updateUser = async (req, res, next) => {
   try {
-    const { role, status, name, password, autoEmailBackup, backupEmail } = req.body;
+    const { role, status, name, username, email, password, autoEmailBackup, backupEmail } = req.body;
     const user = await User.findById(req.params.id);
 
     if (!user) {
       return res.status(404).json({
         success: false,
         message: 'User not found',
+      });
+    }
+
+    const isSelf = req.user && String(req.user._id) === String(user._id);
+    const isAdminOrSuper = req.user && (req.user.role === 'admin' || req.user.role === 'superadmin');
+
+    if (!isSelf && !isAdminOrSuper) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to update this user account',
       });
     }
 
@@ -935,9 +945,13 @@ export const updateUser = async (req, res, next) => {
       }
     }
 
-    if (role) user.role = role;
-    if (status) user.status = status;
-    if (name) user.name = name;
+    // Role & Status can only be changed by Admin / Super Admin
+    if (role && isAdminOrSuper) user.role = role;
+    if (status && isAdminOrSuper) user.status = status;
+
+    if (name) user.name = name.trim();
+    if (username) user.username = username.trim().toLowerCase();
+    if (email) user.email = email.trim().toLowerCase();
     if (autoEmailBackup !== undefined) user.autoEmailBackup = Boolean(autoEmailBackup);
     if (backupEmail !== undefined) user.backupEmail = backupEmail ? backupEmail.trim().toLowerCase() : '';
     if (password && password.trim().length >= 6) {

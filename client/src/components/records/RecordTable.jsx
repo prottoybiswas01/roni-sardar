@@ -29,6 +29,7 @@ export const RecordTable = ({
 
   const isRecordOwner = (record) => {
     if (!user) return false;
+    if (user.role === 'superadmin' || user.role === 'admin') return true;
     if (!record.createdBy) return true;
     const creatorId = typeof record.createdBy === 'object' ? record.createdBy._id : record.createdBy;
     return String(creatorId) === String(user._id || user.id);

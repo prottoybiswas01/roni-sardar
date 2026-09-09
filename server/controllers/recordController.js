@@ -267,7 +267,7 @@ export const updateRecord = async (req, res, next) => {
       });
     }
 
-    let record = await Record.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
+    let record = await Record.findById(req.params.id);
 
     if (!record) {
       return res.status(404).json({
@@ -276,15 +276,17 @@ export const updateRecord = async (req, res, next) => {
       });
     }
 
-    // Ownership check: ONLY the user who created/entered the record can edit it
+    // Ownership check: ONLY the user who created/entered the record (or Superadmin/Admin) can edit it
     if (
       record.createdBy &&
       req.user &&
-      String(record.createdBy) !== String(req.user._id)
+      req.user.role !== 'superadmin' &&
+      req.user.role !== 'admin' &&
+      String(record.createdBy._id || record.createdBy) !== String(req.user._id)
     ) {
       return res.status(403).json({
         success: false,
-        message: 'অনুমতি নেই: শুধুমাত্র যে ইউজার রেকর্ডটি তৈরি করেছেন, তিনিই এটি এডিট করতে পারবেন। (Only the record creator can edit this record)',
+        message: 'অনুমতি নেই: শুধুমাত্র যে ইউজার রেকর্ডটি তৈরি করেছেন, তিনিই এটি এডিট করতে পারবেন। (Only the record creator or administrator can edit this record)',
       });
     }
 
@@ -342,7 +344,7 @@ export const updateRecord = async (req, res, next) => {
   }
 };
 
-// @desc    Soft Delete a record (Move to Recycle Bin)
+// @desc    Permanently delete a record directly from database
 // @route   DELETE /api/records/:id
 // @access  Private
 export const deleteRecord = async (req, res, next) => {
@@ -356,34 +358,33 @@ export const deleteRecord = async (req, res, next) => {
 
     const record = await Record.findById(req.params.id);
 
-    if (!record || record.isDeleted) {
+    if (!record) {
       return res.status(404).json({
         success: false,
         message: 'Record not found',
       });
     }
 
-    // Ownership check: ONLY the user who created/entered the record can delete it
+    // Ownership check: ONLY the user who created/entered the record (or Superadmin/Admin) can delete it
     if (
       record.createdBy &&
       req.user &&
-      String(record.createdBy) !== String(req.user._id)
+      req.user.role !== 'superadmin' &&
+      req.user.role !== 'admin' &&
+      String(record.createdBy._id || record.createdBy) !== String(req.user._id)
     ) {
       return res.status(403).json({
         success: false,
-        message: 'অনুমতি নেই: শুধুমাত্র যে ইউজার রেকর্ডটি তৈরি করেছেন, তিনিই এটি ডিলিট করতে পারবেন। (Only the record creator can delete this record)',
+        message: 'অনুমতি নেই: শুধুমাত্র যে ইউজার রেকর্ডটি তৈরি করেছেন, তিনিই এটি ডিলিট করতে পারবেন। (Only the record creator or administrator can delete this record)',
       });
     }
 
-    // Soft delete: flag record as deleted and timestamp it
-    record.isDeleted = true;
-    record.deletedAt = new Date();
-    record.deletedBy = req.user ? req.user._id : null;
-    await record.save();
+    // Direct permanent deletion from MongoDB
+    await Record.findByIdAndDelete(req.params.id);
 
     res.status(200).json({
       success: true,
-      message: 'Record moved to Recycle Bin (বিন এ পাঠানো হয়েছে)',
+      message: 'রেকর্ডটি ডাটাবেজ থেকে স্থায়ীভাবে মুছে ফেলা হয়েছে (Record permanently deleted)',
       data: { id: req.params.id },
     });
   } catch (error) {
