@@ -6,6 +6,7 @@ import {
   triggerEmailBackup,
   testEmailSettings,
   shareReport,
+  syncSecondaryDatabase,
 } from '../controllers/backupController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -23,5 +24,6 @@ router.get('/status', getBackupStatus);
 router.get('/export', exportBackup);
 router.post('/restore', restoreBackup);
 router.post('/test-email', testEmailSettings);
+router.post('/sync-secondary', syncSecondaryDatabase);
 
 export default router;

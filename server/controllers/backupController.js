@@ -245,3 +245,29 @@ export const shareReport = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Trigger instant full replication from Primary to Secondary MongoDB
+// @route   POST /api/backup/sync-secondary
+// @access  Private/SuperAdmin
+export const syncSecondaryDatabase = async (req, res, next) => {
+  try {
+    const { syncAllToSecondary, getSecondaryConnection } = await import('../services/dbMirrorService.js');
+    const secConn = getSecondaryConnection();
+
+    if (!secConn || secConn.readyState !== 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'Secondary MongoDB is not connected. Please ensure MONGODB_SECONDARY_URI is set in Render Environment Variables and IP 0.0.0.0/0 is whitelisted in MongoDB Atlas.',
+      });
+    }
+
+    await syncAllToSecondary();
+
+    res.status(200).json({
+      success: true,
+      message: '✅ সফলভাবে সকল রেকর্ড ও ইউজার ডাটা Secondary MongoDB ক্লাস্টারে সিঙ্ক সম্পন্ন হয়েছে!',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
