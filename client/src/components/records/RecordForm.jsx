@@ -4,6 +4,7 @@ import { useToast } from '../../context/ToastContext';
 import { useSettings } from '../../context/SettingsContext';
 import { useAuth } from '../../context/AuthContext';
 import { formatDateForInput, getCurrentHospitalTime, formatHospitalTime } from '../../utils/dateUtils';
+import { sanitizeAndExtractPatientId } from '../../services/ocrService';
 import { DuplicateWarning } from './DuplicateWarning';
 import {
   Save,
@@ -130,8 +131,12 @@ export const RecordForm = ({
   const handleChange = (e) => {
     let { name, value } = e.target;
     if (name === 'patientId') {
-      // Strictly only numbers (0-9) - strip any letters, hyphens, symbols
-      value = value.replace(/\D/g, '');
+      // If full lab ID format (e.g. 2608-260481 or 10 digits), extract strictly the 6 digits after first 4
+      if (value.includes('-') || value.replace(/\D/g, '').length >= 10) {
+        value = sanitizeAndExtractPatientId(value);
+      } else {
+        value = value.replace(/\D/g, '');
+      }
     }
     setFormData((prev) => ({
       ...prev,

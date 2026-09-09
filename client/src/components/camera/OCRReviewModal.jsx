@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../common/Modal';
+import { sanitizeAndExtractPatientId } from '../../services/ocrService';
 import {
   Sparkles,
   AlertTriangle,
@@ -43,7 +44,11 @@ export const OCRReviewModal = ({
   const handleChange = (e) => {
     let { name, value } = e.target;
     if (name === 'patientId') {
-      value = value.replace(/\D/g, '');
+      if (value.includes('-') || value.replace(/\D/g, '').length >= 10) {
+        value = sanitizeAndExtractPatientId(value);
+      } else {
+        value = value.replace(/\D/g, '');
+      }
     }
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
