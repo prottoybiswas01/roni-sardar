@@ -592,10 +592,12 @@ export const getMonthlyCounts = async (req, res, next) => {
           query.createdBy = userId;
         }
       } else {
-        query.createdBy = req.user._id;
+        query.createdBy = new mongoose.Types.ObjectId(req.user._id);
       }
     } else {
-      query.createdBy = req.user ? req.user._id : null;
+      if (req.user && req.user._id) {
+        query.createdBy = new mongoose.Types.ObjectId(req.user._id);
+      }
     }
 
     const counts = await Record.aggregate([

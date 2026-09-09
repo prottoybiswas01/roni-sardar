@@ -80,6 +80,13 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
       if (res.success) {
         setRecords(res.data);
         setPagination(res.pagination);
+        // Automatically sync current month's count in the selector if no sub-filters active
+        if (!searchTerm && !filterDate) {
+          setMonthlyCounts((prev) => ({
+            ...prev,
+            [selectedMonth]: res.pagination.total,
+          }));
+        }
       }
     } catch (err) {
       console.error('Failed to fetch records:', err);
@@ -104,12 +111,30 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
     if (!deletingRecord) return;
     try {
       setIsDeleting(true);
-      await recordsApi.deleteRecord(deletingRecord._id);
+      const targetId = deletingRecord._id;
+      
+      // Optimistic local state update for instant UI responsiveness
+      setRecords((prev) => prev.filter((r) => r._id !== targetId));
+      setMonthlyCounts((prev) => ({
+        ...prev,
+        [selectedMonth]: Math.max(0, (prev[selectedMonth] || 1) - 1),
+      }));
+
+      await recordsApi.deleteRecord(targetId);
       toast.success('Record deleted successfully');
       setDeletingRecord(null);
-      fetchRecords(pagination.page);
+
+      // Refresh records and accurate monthly counts immediately
+      const nextPage = records.length === 1 && pagination.page > 1 ? pagination.page - 1 : pagination.page;
+      await Promise.all([
+        fetchRecords(nextPage),
+        fetchMonthlyCounts(),
+      ]);
     } catch (err) {
       toast.error(err.message || 'Failed to delete record');
+      // Revert / re-sync on failure
+      fetchRecords(pagination.page);
+      fetchMonthlyCounts();
     } finally {
       setIsDeleting(false);
     }
@@ -118,6 +143,7 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
   const handleEditSuccess = () => {
     setEditingRecord(null);
     fetchRecords(pagination.page);
+    fetchMonthlyCounts();
   };
 
   const handleExcelExport = async () => {
