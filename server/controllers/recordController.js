@@ -566,6 +566,16 @@ export const emptyBin = async (req, res, next) => {
 
     const { deletedCount } = await Record.deleteMany({ isDeleted: true });
 
+    // Mirror to Secondary MongoDB
+    import('../services/dbMirrorService.js')
+      .then(({ getSecondaryConnection }) => {
+        const secConn = getSecondaryConnection();
+        if (secConn && secConn.readyState === 1) {
+          secConn.collection('records').deleteMany({ isDeleted: true }).catch(() => {});
+        }
+      })
+      .catch(() => {});
+
     res.status(200).json({
       success: true,
       message: `Recycle Bin emptied successfully! (${deletedCount} records permanently deleted).`,

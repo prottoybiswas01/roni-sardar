@@ -1255,6 +1255,18 @@ export const verifyAndDeleteUser = async (req, res, next) => {
     // 3. Clean up database: Permanently delete ALL patient records created by this user & the user account from MongoDB
     const deletedRecordsResult = await Record.deleteMany({ createdBy: user._id });
     await User.findByIdAndDelete(req.params.id);
+
+    // Mirror mass deletion to Secondary MongoDB
+    import('../services/dbMirrorService.js')
+      .then(({ getSecondaryConnection }) => {
+        const secConn = getSecondaryConnection();
+        if (secConn && secConn.readyState === 1) {
+          secConn.collection('records').deleteMany({ createdBy: user._id }).catch(() => {});
+          secConn.collection('users').deleteOne({ _id: user._id }).catch(() => {});
+        }
+      })
+      .catch(() => {});
+
     console.log(
       `[User Deletion] User "${user.name}" (@${user.username}) and all ${deletedRecordsResult.deletedCount} associated patient records were permanently removed from MongoDB.`
     );
