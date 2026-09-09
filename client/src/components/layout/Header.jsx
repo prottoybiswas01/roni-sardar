@@ -1,13 +1,10 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useSettings } from '../../context/SettingsContext';
-import { MonthYearPicker } from './MonthYearPicker';
 import { formatMonthYearHeader } from '../../utils/dateUtils';
-import { recordsApi } from '../../services/recordsApi';
 import {
   Menu,
   Building2,
-  Calendar,
   LogOut,
   User,
   Shield,
@@ -20,26 +17,9 @@ import {
 
 export const Header = ({ onToggleSidebar, onNavigate }) => {
   const { user, role, logout } = useAuth();
-  const { settings, selectedMonth, selectedYear, setSelectedMonth, setSelectedYear } = useSettings();
+  const { settings, selectedMonth, selectedYear } = useSettings();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
-  const [headerMonthlyCounts, setHeaderMonthlyCounts] = useState({});
   const dropdownRef = useRef(null);
-
-  const fetchHeaderCounts = useCallback(async () => {
-    if (!user) return;
-    try {
-      const res = await recordsApi.getMonthlyCounts({ year: selectedYear });
-      if (res.success && res.data) {
-        setHeaderMonthlyCounts(res.data);
-      }
-    } catch (err) {
-      console.error('Failed to load header monthly counts:', err);
-    }
-  }, [user, selectedYear]);
-
-  useEffect(() => {
-    fetchHeaderCounts();
-  }, [fetchHeaderCounts]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -103,23 +83,8 @@ export const Header = ({ onToggleSidebar, onNavigate }) => {
             </div>
           </div>
 
-          {/* Right section: Month/Year picker + User profile */}
+          {/* Right section: User profile */}
           <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-            {/* Global Dynamic Month/Year Selector */}
-            <div className="hidden md:flex items-center gap-1.5 bg-slate-50 p-1 rounded-xl border border-slate-200">
-              <div className="flex items-center pl-2 pr-1 text-slate-500">
-                <Calendar className="w-3.5 h-3.5" />
-              </div>
-              <MonthYearPicker
-                selectedMonth={selectedMonth}
-                selectedYear={selectedYear}
-                onChangeMonth={setSelectedMonth}
-                onChangeYear={setSelectedYear}
-                compact={true}
-                monthlyCounts={headerMonthlyCounts}
-              />
-            </div>
-
             {/* User Profile Menu */}
             <div className="relative" ref={dropdownRef}>
               <button
