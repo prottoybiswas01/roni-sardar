@@ -20,25 +20,23 @@ export const initSecondaryDB = async () => {
 
   try {
     secondaryConnection = mongoose.createConnection(secondaryUri, {
-      serverSelectionTimeoutMS: 10000,
+      serverSelectionTimeoutMS: 15000,
       maxPoolSize: 10,
-      minPoolSize: 2,
+      minPoolSize: 1,
       dbName: 'over_duty_db',
       retryWrites: true,
     });
 
-    secondaryConnection.on('connected', () => {
-      console.log(`[Dual-DB Engine] 🛡️ Secondary MongoDB connected: host=${secondaryConnection.host}, db=${secondaryConnection.name}`);
-      // Immediate initial replication
-      setTimeout(() => {
-        syncAllToSecondary().catch((e) => console.error('[Dual-DB Engine] Initial sync error:', e.message));
-      }, 1500);
+    await secondaryConnection.asPromise();
+    console.log(`[Dual-DB Engine] 🛡️ Secondary MongoDB connection established and open: host=${secondaryConnection.host}, db=${secondaryConnection.name}`);
 
-      // Automated periodic background self-healing sync (runs every 5 minutes automatically)
-      setInterval(() => {
-        syncAllToSecondary().catch((e) => console.error('[Dual-DB Engine] Periodic sync error:', e.message));
-      }, 5 * 60 * 1000);
-    });
+    // Trigger initial replication immediately
+    syncAllToSecondary().catch((e) => console.error('[Dual-DB Engine] Initial sync error:', e.message));
+
+    // Automated periodic background self-healing sync (runs every 3 minutes)
+    setInterval(() => {
+      syncAllToSecondary().catch((e) => console.error('[Dual-DB Engine] Periodic sync error:', e.message));
+    }, 3 * 60 * 1000);
 
     secondaryConnection.on('error', (err) => {
       console.error('[Dual-DB Engine] Secondary MongoDB connection error:', err.message);
