@@ -28,9 +28,13 @@ async function runSync() {
     console.log(`✅ Primary MongoDB Connected: host=${primaryConn.connection.host}, db=${primaryConn.connection.name}`);
 
     console.log('2️⃣ Connecting to Secondary MongoDB...');
-    const secondaryConn = mongoose.createConnection(secondaryUri, {
+    let cleanSecondaryUri = secondaryUri.trim();
+    if (!cleanSecondaryUri.includes('authSource=')) {
+      cleanSecondaryUri += (cleanSecondaryUri.includes('?') ? '&' : '?') + 'authSource=admin';
+    }
+
+    const secondaryConn = mongoose.createConnection(cleanSecondaryUri, {
       serverSelectionTimeoutMS: 15000,
-      dbName: 'over_duty_db',
     });
     await secondaryConn.asPromise();
     console.log(`✅ Secondary MongoDB Connected: host=${secondaryConn.host}, db=${secondaryConn.name}`);

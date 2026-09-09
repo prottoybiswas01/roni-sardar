@@ -19,11 +19,15 @@ export const initSecondaryDB = async () => {
   }
 
   try {
-    secondaryConnection = mongoose.createConnection(secondaryUri, {
+    let cleanSecondaryUri = secondaryUri.trim();
+    if (!cleanSecondaryUri.includes('authSource=')) {
+      cleanSecondaryUri += (cleanSecondaryUri.includes('?') ? '&' : '?') + 'authSource=admin';
+    }
+
+    secondaryConnection = mongoose.createConnection(cleanSecondaryUri, {
       serverSelectionTimeoutMS: 15000,
       maxPoolSize: 10,
       minPoolSize: 1,
-      dbName: 'over_duty_db',
       retryWrites: true,
     });
 
