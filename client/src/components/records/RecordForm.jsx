@@ -186,6 +186,11 @@ export const RecordForm = ({
     }
     if (!validate()) return;
 
+    if (duplicateInfo?.isDuplicate) {
+      toast.error(duplicateInfo.message || 'এই পেশেন্ট আইডি দিয়ে এই মাসে ইতিমধ্যে এন্ট্রি রয়েছে। ডুপ্লিকেট এন্ট্রি অনুমোদিত নয়।');
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       const payload = {

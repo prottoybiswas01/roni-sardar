@@ -7,8 +7,8 @@ const getNextSequenceNumber = async (month, year, userId = null) => {
   if (userId) {
     query.createdBy = userId;
   }
-  const lastRecord = await Record.findOne(query).select('sl').sort({ sl: -1 }).lean();
-  return lastRecord && typeof lastRecord.sl === 'number' ? lastRecord.sl + 1 : 1;
+  const count = await Record.countDocuments(query);
+  return count + 1;
 };
 
 // @desc    Get next sequential SL number for a given date / month & year
@@ -144,7 +144,7 @@ export const getRecords = async (req, res, next) => {
   }
 };
 
-// @desc    Get single record by ID (Active only)
+// @desc    Get single record by ID
 // @route   GET /api/records/:id
 // @access  Private
 export const getRecordById = async (req, res, next) => {
@@ -229,6 +229,24 @@ export const createRecord = async (req, res, next) => {
     const recordYear = recordDate.getFullYear();
     const userId = req.user ? req.user._id : null;
 
+    // Strict Duplicate Patient ID Prevention: A patient ID cannot be entered more than once per user in the month
+    const duplicateQuery = {
+      patientId: stringPatientId,
+      month: recordMonth,
+      year: recordYear,
+    };
+    if (userId) {
+      duplicateQuery.createdBy = userId;
+    }
+
+    const existingRecord = await Record.findOne(duplicateQuery);
+    if (existingRecord) {
+      return res.status(400).json({
+        success: false,
+        message: `পেশেন্ট আইডি #${stringPatientId} দিয়ে "${existingRecord.patientName}" রোগীর একটি রেকর্ড ইতিমধ্যে এই মাসে এন্ট্রি করা হয়েছে। একই পেশেন্ট আইডি একাধিকবার ব্যবহার করা যাবে না। (Duplicate Patient ID not allowed)`,
+      });
+    }
+
     // Auto-compute SL strictly for this user's monthly sequence if not explicitly given
     const recordSl = sl && Number(sl) > 0 ? Number(sl) : await getNextSequenceNumber(recordMonth, recordYear, userId);
 
@@ -242,7 +260,6 @@ export const createRecord = async (req, res, next) => {
       month: recordMonth,
       year: recordYear,
       createdBy: userId,
-      isDeleted: false,
     });
 
     res.status(201).json({
@@ -319,17 +336,46 @@ export const updateRecord = async (req, res, next) => {
       record.sl = Number(sl);
     }
 
+    const newPatientId = patientId !== undefined ? String(patientId).trim() : record.patientId;
+    let newDate = record.date;
     if (date !== undefined) {
-      const recordDate = new Date(date);
-      if (isNaN(recordDate.getTime())) {
+      const parsedDate = new Date(date);
+      if (isNaN(parsedDate.getTime())) {
         return res.status(400).json({
           success: false,
           message: 'Invalid date format provided',
         });
       }
-      record.date = recordDate;
-      record.month = recordDate.getMonth() + 1;
-      record.year = recordDate.getFullYear();
+      newDate = parsedDate;
+    }
+    const newMonth = newDate.getMonth() + 1;
+    const newYear = newDate.getFullYear();
+
+    // Strict duplicate check on update excluding this current record
+    const duplicateQuery = {
+      _id: { $ne: record._id },
+      patientId: newPatientId,
+      month: newMonth,
+      year: newYear,
+    };
+    if (record.createdBy) {
+      duplicateQuery.createdBy = record.createdBy;
+    }
+    const existingOther = await Record.findOne(duplicateQuery);
+    if (existingOther) {
+      return res.status(400).json({
+        success: false,
+        message: `পেশেন্ট আইডি #${newPatientId} দিয়ে "${existingOther.patientName}" রোগীর একটি এন্ট্রি ইতিমধ্যে এই মাসে রয়েছে (SL: ${existingOther.sl})। একই আইডি ডুপ্লিকেট করা যাবে না।`,
+      });
+    }
+
+    if (patientId !== undefined) {
+      record.patientId = newPatientId;
+    }
+    if (date !== undefined) {
+      record.date = newDate;
+      record.month = newMonth;
+      record.year = newYear;
     }
 
     await record.save();
@@ -397,42 +443,46 @@ export const deleteRecord = async (req, res, next) => {
 // @access  Private
 export const checkDuplicate = async (req, res, next) => {
   try {
-    const { patientId, date, excludeId } = req.query;
+    const { patientId, date, month, year, excludeId } = req.query;
 
-    if (!patientId || !date) {
+    if (!patientId) {
       return res.status(200).json({
         success: true,
         isDuplicate: false,
       });
     }
 
-    const targetDate = new Date(date);
-    if (isNaN(targetDate.getTime())) {
-      return res.status(200).json({
-        success: true,
-        isDuplicate: false,
-      });
+    let targetMonth, targetYear;
+    if (date) {
+      const d = new Date(date);
+      if (!isNaN(d.getTime())) {
+        targetMonth = d.getMonth() + 1;
+        targetYear = d.getFullYear();
+      }
     }
 
-    const startOfDay = new Date(new Date(date).setHours(0, 0, 0, 0));
-    const endOfDay = new Date(new Date(date).setHours(23, 59, 59, 999));
+    if (!targetMonth) {
+      targetMonth = month ? Number(month) : new Date().getMonth() + 1;
+      targetYear = year ? Number(year) : new Date().getFullYear();
+    }
 
     const query = {
       patientId: String(patientId).trim(),
-      date: { $gte: startOfDay, $lte: endOfDay },
+      month: targetMonth,
+      year: targetYear,
     };
 
     // Duplicate check is scoped to the user's own records
-    if (req.user && req.user.role !== 'superadmin') {
+    if (req.user) {
       query.createdBy = req.user._id;
     }
 
-    if (excludeId) {
+    if (excludeId && mongoose.Types.ObjectId.isValid(excludeId)) {
       query._id = { $ne: excludeId };
     }
 
     const existing = await Record.findOne(query)
-      .select('patientId patientName date')
+      .select('patientId patientName date sl month year time')
       .lean();
 
     if (existing) {
@@ -440,7 +490,7 @@ export const checkDuplicate = async (req, res, next) => {
         success: true,
         isDuplicate: true,
         duplicateRecord: existing,
-        message: `A record for Patient ID ${existing.patientId} (${existing.patientName}) already exists on ${new Date(existing.date).toLocaleDateString()}.`,
+        message: `পেশেন্ট আইডি #${existing.patientId} (${existing.patientName}) দিয়ে এই মাসে ইতিমধ্যে এন্ট্রি আছে (SL: ${existing.sl})।`,
       });
     }
 
