@@ -1,8 +1,16 @@
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
-    ? 'https://roni-sardar.onrender.com/api'
-    : '/api');
+const getBaseUrl = () => {
+  let envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl && envUrl.trim()) {
+    let clean = envUrl.trim().replace(/\/+$/, '');
+    return clean.endsWith('/api') ? clean : `${clean}/api`;
+  }
+  if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+    return 'https://roni-sardar.onrender.com/api';
+  }
+  return '/api';
+};
+
+const API_BASE_URL = getBaseUrl();
 
 /**
  * Core API client with token injection & uniform error handling
