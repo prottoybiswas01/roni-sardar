@@ -653,6 +653,7 @@ export const checkDuplicate = async (req, res, next) => {
 // @access  Private
 export const getDashboardStats = async (req, res, next) => {
   try {
+    const { month, year, userId } = req.query;
     const parsedMonth = Number(month);
     const parsedYear = Number(year);
     const currentMonth = !isNaN(parsedMonth) && parsedMonth >= 1 && parsedMonth <= 12 ? parsedMonth : new Date().getMonth() + 1;
