@@ -21,15 +21,23 @@ export const initSecondaryDB = async () => {
   try {
     secondaryConnection = mongoose.createConnection(secondaryUri, {
       serverSelectionTimeoutMS: 10000,
+      maxPoolSize: 10,
+      minPoolSize: 2,
       dbName: 'over_duty_db',
+      retryWrites: true,
     });
 
     secondaryConnection.on('connected', () => {
-      console.log(`[Dual-DB Engine] 🛡️ Secondary MongoDB connected successfully: host=${secondaryConnection.host}, db=${secondaryConnection.name}`);
-      // Perform initial full background synchronization after short delay
+      console.log(`[Dual-DB Engine] 🛡️ Secondary MongoDB connected: host=${secondaryConnection.host}, db=${secondaryConnection.name}`);
+      // Immediate initial replication
       setTimeout(() => {
         syncAllToSecondary().catch((e) => console.error('[Dual-DB Engine] Initial sync error:', e.message));
-      }, 2000);
+      }, 1500);
+
+      // Automated periodic background self-healing sync (runs every 5 minutes automatically)
+      setInterval(() => {
+        syncAllToSecondary().catch((e) => console.error('[Dual-DB Engine] Periodic sync error:', e.message));
+      }, 5 * 60 * 1000);
     });
 
     secondaryConnection.on('error', (err) => {
