@@ -37,10 +37,16 @@ export const biometricService = {
   isMobileDevice: () => {
     if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
     const ua = navigator.userAgent || navigator.vendor || window.opera || '';
-    const isMobileUA = /Android|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-    const hasTouchScreen = Boolean(navigator.maxTouchPoints > 0 || ('ontouchstart' in window));
-    const isSmallScreen = typeof window !== 'undefined' && window.innerWidth <= 850;
-    return isMobileUA || (hasTouchScreen && isSmallScreen);
+    
+    // Reject Desktop OS & Tablets
+    const isDesktop = /Windows NT|Macintosh|Mac OS X|Linux x86_64|CrOS|X11/i.test(ua);
+    const isTablet = /iPad|Tablet|Nexus 7|Nexus 10|KFAPWI|PlayBook|Silk/i.test(ua);
+    if (isDesktop || isTablet) return false;
+
+    // Check mobile phone UA
+    const isMobilePhoneUA = (/Android/i.test(ua) && /Mobile/i.test(ua)) || /iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+    const isSmallScreen = typeof window !== 'undefined' && window.innerWidth <= 640;
+    return Boolean(isMobilePhoneUA && isSmallScreen);
   },
 
   /**

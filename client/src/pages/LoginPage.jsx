@@ -42,7 +42,37 @@ export const LoginPage = () => {
   const [isAdmin2FAMode, setIsAdmin2FAMode] = useState(false);
   const [isVerificationSuccess, setIsVerificationSuccess] = useState(false);
   const [isBiometricLoading, setIsBiometricLoading] = useState(false);
+  const [isPhoneDevice, setIsPhoneDevice] = useState(false);
   const [otpCode, setOtpCode] = useState('');
+
+  React.useEffect(() => {
+    const checkIsPhone = () => {
+      if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+        setIsPhoneDevice(false);
+        return;
+      }
+      const ua = navigator.userAgent || navigator.vendor || window.opera || '';
+      
+      // Explicitly reject Desktop OS
+      const isDesktop = /Windows NT|Macintosh|Mac OS X|Linux x86_64|CrOS|X11/i.test(ua);
+      // Explicitly reject Tablets & iPads
+      const isTablet = /iPad|Tablet|Nexus 7|Nexus 10|KFAPWI|PlayBook|Silk/i.test(ua);
+      
+      if (isDesktop || isTablet) {
+        setIsPhoneDevice(false);
+        return;
+      }
+
+      // Check for mobile phone user agents (Android phone, iPhone, iPod)
+      const isMobilePhoneUA = (/Android/i.test(ua) && /Mobile/i.test(ua)) || /iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+      const isSmallScreen = window.innerWidth <= 640;
+
+      setIsPhoneDevice(Boolean(isMobilePhoneUA && isSmallScreen));
+    };
+    checkIsPhone();
+    window.addEventListener('resize', checkIsPhone);
+    return () => window.removeEventListener('resize', checkIsPhone);
+  }, []);
   const [verificationEmail, setVerificationEmail] = useState('');
   const [maskedEmail, setMaskedEmail] = useState('');
   const [isResending, setIsResending] = useState(false);
@@ -637,9 +667,9 @@ export const LoginPage = () => {
           ) : (
             /* SCREEN 3: Login or Registration Form */
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* 1-TOUCH BIOMETRIC LOGIN BUTTON (Top Highlight) */}
-              {!isRegisterMode && (
-                <div className="mb-4">
+              {/* 1-TOUCH BIOMETRIC LOGIN BUTTON (Exclusively for Mobile Phones) */}
+              {isPhoneDevice && !isRegisterMode && (
+                <div className="mb-4 block sm:hidden">
                   <button
                     type="button"
                     onClick={handleBiometricLogin}
@@ -651,7 +681,7 @@ export const LoginPage = () => {
                     ) : (
                       <Fingerprint className="w-5 h-5 text-emerald-200 group-hover:scale-110 transition-transform" />
                     )}
-                    <span>👆 ফিঙ্গারপ্রিন্ট / বায়োমেট্রিকে ১-ক্লিক লগইন</span>
+                    <span>👆 মোবাইলে ফিঙ্গারপ্রিন্ট দিয়ে ১-ক্লিক লগইন</span>
                   </button>
 
                   <div className="relative my-4 text-center">
