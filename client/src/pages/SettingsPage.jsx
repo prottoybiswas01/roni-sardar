@@ -5,6 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { authApi } from '../services/authApi';
 import { recordsApi } from '../services/recordsApi';
 import { backupApi } from '../services/backupApi';
+import { biometricService } from '../services/biometricService';
 import { exportMonthlyReportToExcel } from '../services/excelService';
 import { exportMonthlyReportToPDF } from '../services/pdfService';
 import { Modal } from '../components/common/Modal';
@@ -47,6 +48,10 @@ import {
   Lock,
   PauseCircle,
   PlayCircle,
+  Fingerprint,
+  Smartphone,
+  Laptop,
+  Key,
 } from 'lucide-react';
 
 export const SettingsPage = ({ initialTab = 'general' }) => {
@@ -92,6 +97,72 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
   const [backupYear, setBackupYear] = useState(selectedYear || new Date().getFullYear());
   const [isSavingEmail, setIsSavingEmail] = useState(false);
   const [isSendingEmailNow, setIsSendingEmailNow] = useState(false);
+
+  // Biometrics & 2FA State
+  const [biometricDevices, setBiometricDevices] = useState([]);
+  const [isAdmin2FAEnabled, setIsAdmin2FAEnabled] = useState(true);
+  const [isLoadingBiometrics, setIsLoadingBiometrics] = useState(false);
+  const [isEnrollingBiometrics, setIsEnrollingBiometrics] = useState(false);
+  const [isToggling2FA, setIsToggling2FA] = useState(false);
+  const [customDeviceLabel, setCustomDeviceLabel] = useState('');
+
+  const fetchBiometricsData = useCallback(async () => {
+    try {
+      setIsLoadingBiometrics(true);
+      const res = await biometricService.getDevices();
+      if (res.success && res.data) {
+        setBiometricDevices(res.data.biometrics || []);
+        setIsAdmin2FAEnabled(res.data.admin2FAEnabled !== false);
+      }
+    } catch (err) {
+      console.error('Failed to load biometrics:', err);
+    } finally {
+      setIsLoadingBiometrics(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'security') {
+      fetchBiometricsData();
+    }
+  }, [activeTab, fetchBiometricsData]);
+
+  const handleEnrollBiometrics = async () => {
+    try {
+      setIsEnrollingBiometrics(true);
+      const res = await biometricService.registerDevice(customDeviceLabel.trim());
+      toast.success(res.message || '🎉 আপনার ডিভাইসের ফিঙ্গারপ্রিন্ট সফলভাবে যুক্ত হয়েছে!');
+      setCustomDeviceLabel('');
+      fetchBiometricsData();
+    } catch (err) {
+      toast.error(err.message || 'ফিঙ্গারপ্রিন্ট যোগ করা সম্ভব হয়নি।');
+    } finally {
+      setIsEnrollingBiometrics(false);
+    }
+  };
+
+  const handleDeleteBiometricDevice = async (credentialId) => {
+    try {
+      await biometricService.deleteDevice(credentialId);
+      toast.success('বায়োমেট্রিক ডিভাইস সফলভাবে মুছে ফেলা হয়েছে।');
+      fetchBiometricsData();
+    } catch (err) {
+      toast.error('মুছে ফেলতে ব্যর্থ হয়েছে: ' + err.message);
+    }
+  };
+
+  const handleToggleAdmin2FA = async (enabled) => {
+    try {
+      setIsToggling2FA(true);
+      const res = await biometricService.toggleAdmin2FA(enabled);
+      setIsAdmin2FAEnabled(enabled);
+      toast.success(res.message || 'সেটিংস আপডেট হয়েছে');
+    } catch (err) {
+      toast.error('2FA সেটিংস পরিবর্তন ব্যর্থ: ' + err.message);
+    } finally {
+      setIsToggling2FA(false);
+    }
+  };
 
   useEffect(() => {
     if (currentUser) {
@@ -554,6 +625,24 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
             )}
           </button>
         )}
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('security')}
+          className={`pb-3 border-b-2 flex items-center gap-2 transition-colors ${
+            activeTab === 'security'
+              ? 'border-emerald-600 text-emerald-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Fingerprint className="w-4 h-4 text-emerald-600" />
+          Biometric & 2FA Login
+          {biometricDevices.length > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-700 font-bold">
+              {biometricDevices.length} Enrolled
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Tab 1: General Settings */}
@@ -1153,6 +1242,174 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Tab 4: Biometric & 2FA Security Settings */}
+      {activeTab === 'security' && (
+        <div className="max-w-3xl mx-auto space-y-6">
+          {/* Card 1: 1-Touch Biometrics / Fingerprint Authentication */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-subtle overflow-hidden">
+            <div className="p-6 border-b border-slate-100 bg-gradient-to-r from-emerald-50/60 via-white to-teal-50/60">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 shrink-0">
+                  <Fingerprint className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    📱 ডিভাইস বায়োমেট্রিক ও ফিঙ্গারপ্রিন্ট লগইন (1-Touch Biometric Login)
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    আপনার মোবাইল বা কম্পিউটারের ফিঙ্গারপ্রিন্ট / ফেস আইডি সেন্সর ব্যবহার করে ওটিপি বা পাসওয়ার্ড ছাড়াই ১ ক্লিকে লগইন করুন।
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Device Enrollment Section */}
+              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <Smartphone className="w-4 h-4 text-emerald-600" />
+                      এই ডিভাইসের ফিঙ্গারপ্রিন্ট যুক্ত করুন (Enroll This Device)
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      নিচের বাটনে চাপ দিলে আপনার ডিভাইসের ফিঙ্গারপ্রিন্ট সেন্সর চালু হবে। স্ক্যান সম্পন্ন হলে ডিভাইসটি যুক্ত হয়ে যাবে।
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleEnrollBiometrics}
+                    disabled={isEnrollingBiometrics}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer shrink-0"
+                  >
+                    {isEnrollingBiometrics ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    ) : (
+                      <Fingerprint className="w-4 h-4 text-emerald-100" />
+                    )}
+                    <span>ফিঙ্গারপ্রিন্ট যুক্ত করুন</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Registered Devices List */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  নিবন্ধিত বায়োমেট্রিক ডিভাইসসমূহ ({biometricDevices.length} টি)
+                </h4>
+
+                {isLoadingBiometrics ? (
+                  <div className="py-6 text-center text-slate-400 text-xs flex justify-center items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-brand-600" />
+                    ডিভাইস লোড হচ্ছে...
+                  </div>
+                ) : biometricDevices.length === 0 ? (
+                  <div className="p-6 text-center rounded-xl bg-slate-50/60 border border-dashed border-slate-200 text-xs text-slate-500 space-y-2">
+                    <Fingerprint className="w-8 h-8 text-slate-300 mx-auto" />
+                    <p className="font-semibold text-slate-600">কোনো বায়োমেট্রিক ডিভাইস এখনও যুক্ত করা হয়নি</p>
+                    <p className="text-[11px] text-slate-400">
+                      আপনার ফোন বা ল্যাপটপে উপরের <strong>"ফিঙ্গারপ্রিন্ট যুক্ত করুন"</strong> বাটনে চাপ দিয়ে ডিভাইসটি অ্যাড করে নিন।
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100 border border-slate-200/80 rounded-xl overflow-hidden bg-white">
+                    {biometricDevices.map((dev, idx) => (
+                      <div key={dev.credentialId || idx} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200/60 shrink-0">
+                            <Fingerprint className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-900">{dev.deviceName || 'Biometric Device'}</p>
+                            <p className="text-[11px] text-slate-400">
+                              যুক্ত করার সময়: {new Date(dev.registeredAt || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteBiometricDevice(dev.credentialId)}
+                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                          title="মুছে ফেলুন"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Admin Email 2FA OTP Toggle (Only for Super Admin / Admin) */}
+          {isAdmin && (
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-subtle overflow-hidden">
+              <div className="p-6 border-b border-slate-100 bg-gradient-to-r from-amber-50/60 via-white to-orange-50/60">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
+                    <ShieldCheck className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      🛡️ অ্যাডমিন লগইনে ইমেইল OTP ভেরিফিকেশন (2FA Security)
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      লগইনের সময় বারে বারে ইমেইল ওটিপি কোড পাঠানোর নিরাপত্তা স্তরটি চালু বা বন্ধ রাখুন।
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200/80">
+                  <div className="space-y-1">
+                    <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                      <Lock className="w-3.5 h-3.5 text-amber-600" />
+                      ইমেইল ২FA ওটিপি সুরক্ষা:
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${isAdmin2FAEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                        {isAdmin2FAEnabled ? 'চালু আছে (OTP Required)' : 'বন্ধ আছে (Direct Login)'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      {isAdmin2FAEnabled
+                        ? 'বর্তমানে অ্যাডমিন লগইন করার সময় প্রতিবার সিকিউরিটি ওটিপি ইমেইলে পাঠানো হয়।'
+                        : 'বর্তমানে ওটিপি বন্ধ আছে — পাসওয়ার্ড অথবা ফিঙ্গারপ্রিন্ট দিয়ে সাথে সাথে কোনো ওটিপি ছাড়াই লগইন হবে।'}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isToggling2FA}
+                    onClick={() => handleToggleAdmin2FA(!isAdmin2FAEnabled)}
+                    className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white shadow-md transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer shrink-0 ${
+                      isAdmin2FAEnabled
+                        ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/20'
+                        : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+                    }`}
+                  >
+                    {isToggling2FA ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    ) : isAdmin2FAEnabled ? (
+                      <Lock className="w-4 h-4 text-rose-200" />
+                    ) : (
+                      <ShieldCheck className="w-4 h-4 text-emerald-200" />
+                    )}
+                    <span>{isAdmin2FAEnabled ? 'ওটিপি বন্ধ করুন (Disable OTP)' : 'ওটিপি চালু করুন (Enable OTP)'}</span>
+                  </button>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 leading-relaxed">
+                  💡 <strong>পরামর্শ:</strong> আপনি যদি মোবাইল বা পিসিতে ফিঙ্গারপ্রিন্ট যুক্ত করে নেন, তবে ওটিপি বন্ধ থাকলে অথবা চালু থাকলেও ফিঙ্গারপ্রিন্ট বাটনে এক ট্যাপ করলেই ১ সেকেন্ডে অ্যাডমিন প্যানেলে ঢুকে যাবেন!
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

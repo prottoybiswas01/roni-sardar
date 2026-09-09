@@ -105,5 +105,22 @@ export const authApi = {
       method: 'DELETE',
     });
   },
+
+  getBiometrics: async () => {
+    return await apiClient('/auth/biometrics/devices');
+  },
+
+  deleteBiometricDevice: async (credentialId) => {
+    return await apiClient(`/auth/biometrics/${encodeURIComponent(credentialId)}`, {
+      method: 'DELETE',
+    });
+  },
+
+  toggleAdmin2FA: async (enabled) => {
+    return await apiClient('/auth/toggle-admin-2fa', {
+      method: 'PUT',
+      body: JSON.stringify({ enabled }),
+    });
+  },
 };
 

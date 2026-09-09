@@ -15,6 +15,13 @@ import {
   sendDeleteUserOtp,
   verifyAndDeleteUser,
   updateMyBackupEmail,
+  getBiometricRegisterOptions,
+  verifyBiometricRegistration,
+  getBiometricLoginOptions,
+  verifyBiometricLogin,
+  getBiometricDevices,
+  deleteBiometricDevice,
+  toggleAdmin2FA,
 } from '../controllers/authController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -31,9 +38,20 @@ router.post('/forgot-password', forgotPassword);
 router.post('/verify-reset-password', verifyResetPassword);
 router.post('/resend-forgot-password-otp', forgotPassword);
 
+// Public Biometric 1-Touch Login Routes
+router.post('/biometrics/login-options', getBiometricLoginOptions);
+router.post('/biometrics/verify-login', verifyBiometricLogin);
+
 // Private User Routes
 router.get('/me', protect, getMe);
 router.put('/backup-email', protect, updateMyBackupEmail);
+
+// Private Biometric Device Registration & Management Routes
+router.post('/biometrics/register-options', protect, getBiometricRegisterOptions);
+router.post('/biometrics/verify-registration', protect, verifyBiometricRegistration);
+router.get('/biometrics/devices', protect, getBiometricDevices);
+router.delete('/biometrics/:credentialId', protect, deleteBiometricDevice);
+router.put('/toggle-admin-2fa', protect, authorize('admin', 'superadmin'), toggleAdmin2FA);
 
 // Super Admin / Admin User Management Routes
 router.get('/users', protect, authorize('admin', 'superadmin'), getUsers);

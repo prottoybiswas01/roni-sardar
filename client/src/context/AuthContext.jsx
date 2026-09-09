@@ -60,6 +60,17 @@ export const AuthProvider = ({ children }) => {
     throw new Error(res.message || 'Login failed');
   };
 
+  const loginWithSession = (sessionData) => {
+    if (sessionData) {
+      const { token: newToken, ...userData } = sessionData;
+      setToken(newToken);
+      setUser(userData);
+      localStorage.setItem('token', newToken);
+      localStorage.setItem('user', JSON.stringify(userData));
+      return sessionData;
+    }
+  };
+
   const register = async (userData) => {
     const res = await authApi.register(userData);
     return res;
@@ -145,6 +156,7 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated: Boolean(token && user),
     isLoading,
     login,
+    loginWithSession,
     register,
     verifyEmailOtp,
     resendEmailOtp,

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { biometricService } from '../services/biometricService';
 import {
   Activity,
   Lock,
@@ -17,11 +18,14 @@ import {
   HelpCircle,
   Eye,
   EyeOff,
+  Fingerprint,
+  Sparkles,
 } from 'lucide-react';
 
 export const LoginPage = () => {
   const {
     login,
+    loginWithSession,
     register,
     verifyEmailOtp,
     resendEmailOtp,
@@ -37,6 +41,7 @@ export const LoginPage = () => {
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [isAdmin2FAMode, setIsAdmin2FAMode] = useState(false);
   const [isVerificationSuccess, setIsVerificationSuccess] = useState(false);
+  const [isBiometricLoading, setIsBiometricLoading] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [verificationEmail, setVerificationEmail] = useState('');
   const [maskedEmail, setMaskedEmail] = useState('');
@@ -262,6 +267,22 @@ export const LoginPage = () => {
       toast.error(err.message || 'কোড পুনরায় পাঠানো সম্ভব হয়নি।');
     } finally {
       setIsForgotResending(false);
+    }
+  };
+
+  // Handle 1-Touch Biometric Login (Fingerprint / Face ID)
+  const handleBiometricLogin = async () => {
+    try {
+      setIsBiometricLoading(true);
+      const res = await biometricService.loginWithBiometrics();
+      if (res.success && res.data) {
+        loginWithSession(res.data);
+        toast.success(res.message || '🎉 বায়োমেট্রিক দিয়ে সফলভাবে প্রবেশ করেছেন!');
+      }
+    } catch (err) {
+      toast.error(err.message || 'বায়োমেট্রিক যাচাই ব্যর্থ হয়েছে। পাসওয়ার্ড দিয়ে প্রবেশ করুন।');
+    } finally {
+      setIsBiometricLoading(false);
     }
   };
 
@@ -612,6 +633,36 @@ export const LoginPage = () => {
           ) : (
             /* SCREEN 3: Login or Registration Form */
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* 1-TOUCH BIOMETRIC LOGIN BUTTON (Top Highlight) */}
+              {!isRegisterMode && (
+                <div className="mb-4">
+                  <button
+                    type="button"
+                    onClick={handleBiometricLogin}
+                    disabled={isBiometricLoading || isLoading}
+                    className="w-full inline-flex items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 py-3 px-4 text-sm font-bold text-white shadow-lg shadow-emerald-700/30 hover:from-emerald-500 hover:to-teal-500 hover:shadow-emerald-600/40 transition-all active:scale-[0.98] cursor-pointer group border border-emerald-400/30"
+                  >
+                    {isBiometricLoading ? (
+                      <Loader2 className="w-5 h-5 animate-spin text-white" />
+                    ) : (
+                      <Fingerprint className="w-5 h-5 text-emerald-200 group-hover:scale-110 transition-transform" />
+                    )}
+                    <span>👆 ফিঙ্গারপ্রিন্ট / বায়োমেট্রিকে ১-ক্লিক লগইন</span>
+                  </button>
+
+                  <div className="relative my-4 text-center">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-slate-700/80"></div>
+                    </div>
+                    <div className="relative flex justify-center text-[11px] uppercase">
+                      <span className="bg-slate-800 px-3 text-slate-400 font-semibold tracking-wider">
+                        অথবা পাসওয়ার্ড দিয়ে
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Name Field (Only in Register Mode) */}
               {isRegisterMode && (
                 <div className="space-y-1.5 animate-in fade-in duration-200">

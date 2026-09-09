@@ -82,6 +82,23 @@ const userSchema = new mongoose.Schema(
       type: Date,
       select: false,
     },
+    admin2FAEnabled: {
+      type: Boolean,
+      default: true,
+    },
+    biometricChallenge: {
+      type: String,
+      select: false,
+    },
+    biometrics: [
+      {
+        credentialId: { type: String, required: true },
+        publicKey: { type: String, required: true },
+        counter: { type: Number, default: 0 },
+        deviceName: { type: String, default: 'Biometric Authenticator' },
+        registeredAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   {
     timestamps: true,

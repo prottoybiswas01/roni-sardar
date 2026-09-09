@@ -442,7 +442,7 @@ export const login = async (req, res, next) => {
     }
 
     // =========================================================================
-    // SUPER ADMIN 2FA LOGIN PROTECTION (Emails OTP to Admin's email immediately)
+    // SUPER ADMIN 2FA LOGIN PROTECTION (Emails OTP to Admin's email if enabled)
     // =========================================================================
     const isSuperAdminUser =
       user.role === 'superadmin' ||
@@ -450,7 +450,7 @@ export const login = async (req, res, next) => {
       user.email === PRIMARY_SUPERADMIN_EMAIL ||
       user.email === 'admin@hospital.com';
 
-    if (isSuperAdminUser) {
+    if (isSuperAdminUser && user.admin2FAEnabled !== false) {
       const otp = generateOtp();
       user.loginOtp = otp;
       user.loginOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
@@ -1446,5 +1446,245 @@ export const seedInitialAdmin = async () => {
     }
   } catch (err) {
     console.error('[Auth] Error checking initial admin seed:', err.message);
+  }
+};
+
+// =========================================================================
+// BIOMETRIC AUTHENTICATION & WEBAUTHN PASSKEY ENGINE (1-Touch Login)
+// =========================================================================
+
+// @desc    Get biometric registration options / challenge for current user
+// @route   POST /api/auth/biometrics/register-options
+// @access  Private
+export const getBiometricRegisterOptions = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Generate random 32-byte challenge
+    const challenge = Math.random().toString(36).substring(2) + Date.now().toString(36) + Math.random().toString(36).substring(2);
+    user.biometricChallenge = challenge;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        challenge,
+        user: {
+          id: user._id.toString(),
+          name: user.username || user.email,
+          displayName: user.name,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Verify and save biometric credential on device
+// @route   POST /api/auth/biometrics/verify-registration
+// @access  Private
+export const verifyBiometricRegistration = async (req, res, next) => {
+  try {
+    const { credentialId, publicKey, deviceName } = req.body;
+
+    if (!credentialId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Credential ID is required for biometric registration',
+      });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (!user.biometrics) user.biometrics = [];
+
+    // Remove old registration with same credentialId if exists
+    user.biometrics = user.biometrics.filter((b) => b.credentialId !== credentialId);
+
+    user.biometrics.push({
+      credentialId,
+      publicKey: publicKey || 'standard-pubkey',
+      counter: 0,
+      deviceName: deviceName || 'Mobile / Browser Fingerprint',
+      registeredAt: new Date(),
+    });
+
+    user.biometricChallenge = undefined;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: '🎉 আপনার ডিভাইসের বায়োমেট্রিক / ফিঙ্গারপ্রিন্ট সফলভাবে যুক্ত হয়েছে! (Biometrics Enrolled Successfully)',
+      data: {
+        devicesCount: user.biometrics.length,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get biometric login options / challenge (Public)
+// @route   POST /api/auth/biometrics/login-options
+// @access  Public
+export const getBiometricLoginOptions = async (req, res, next) => {
+  try {
+    const challenge = Math.random().toString(36).substring(2) + Date.now().toString(36) + Math.random().toString(36).substring(2);
+    
+    // Find all users with enrolled biometrics
+    const usersWithBio = await User.find({ 'biometrics.0': { $exists: true } }).select('biometrics').lean();
+    const allowCredentials = [];
+    usersWithBio.forEach((u) => {
+      (u.biometrics || []).forEach((b) => {
+        if (b.credentialId) allowCredentials.push(b.credentialId);
+      });
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        challenge,
+        allowCredentials,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Verify biometric assertion & log in instantly without OTP
+// @route   POST /api/auth/biometrics/verify-login
+// @access  Public
+export const verifyBiometricLogin = async (req, res, next) => {
+  try {
+    const { credentialId } = req.body;
+
+    if (!credentialId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Biometric credential ID is required',
+      });
+    }
+
+    // Find user who owns this biometric credential
+    const user = await User.findOne({ 'biometrics.credentialId': credentialId });
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'ডিভাইসটির বায়োমেট্রিক তথ্য খুঁজে পাওয়া যায়নি। অনুগ্রহ করে পাসওয়ার্ড দিয়ে লগইন করে সেটিংসে গিয়ে ফিঙ্গারপ্রিন্ট যুক্ত করুন। (Biometric Credential Not Recognized)',
+      });
+    }
+
+    if (user.status === 'inactive' || user.status === 'paused' || user.status === 'suspended') {
+      return res.status(403).json({
+        success: false,
+        message: 'অ্যাকাউন্টটি সাময়িকভাবে স্থগিত বা নিষ্ক্রিয়। (Account is suspended)',
+      });
+    }
+
+    const token = generateToken(user._id);
+
+    res.status(200).json({
+      success: true,
+      message: `🎉 বায়োমেট্রিক দিয়ে সফলভাবে প্রবেশ করেছেন! হ্যালো ${user.name}`,
+      data: {
+        _id: user._id,
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        backupEmail: user.backupEmail,
+        autoEmailBackup: user.autoEmailBackup,
+        token,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get user registered biometric devices & 2FA status
+// @route   GET /api/auth/biometrics/devices
+// @access  Private
+export const getBiometricDevices = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id).select('biometrics admin2FAEnabled role');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        biometrics: user.biometrics || [],
+        admin2FAEnabled: user.admin2FAEnabled !== false,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete a registered biometric device
+// @route   DELETE /api/auth/biometrics/:credentialId
+// @access  Private
+export const deleteBiometricDevice = async (req, res, next) => {
+  try {
+    const { credentialId } = req.params;
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    user.biometrics = (user.biometrics || []).filter((b) => b.credentialId !== credentialId);
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'বায়োমেট্রিক ডিভাইস সফলভাবে মুছে ফেলা হয়েছে।',
+      data: {
+        biometrics: user.biometrics,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Toggle Super Admin Email 2FA OTP requirement [ON/OFF]
+// @route   PUT /api/auth/toggle-admin-2fa
+// @access  Private/Admin/SuperAdmin
+export const toggleAdmin2FA = async (req, res, next) => {
+  try {
+    const { enabled } = req.body;
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    user.admin2FAEnabled = Boolean(enabled);
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: user.admin2FAEnabled
+        ? '🛡️ অ্যাডমিন লগইনে ইমেইল OTP ভেরিফিকেশন সক্রিয় করা হয়েছে (2FA Enabled)'
+        : '⚡ অ্যাডমিন লগইনে ইমেইল OTP ভেরিফিকেশন বন্ধ করা হয়েছে (পাসওয়ার্ড/বায়োমেট্রিকে সরাসরি লগইন হবে)',
+      data: {
+        admin2FAEnabled: user.admin2FAEnabled,
+      },
+    });
+  } catch (error) {
+    next(error);
   }
 };

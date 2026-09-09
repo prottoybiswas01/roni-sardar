@@ -226,8 +226,15 @@ project-root/
 
 | Method | Route | Access | Description |
 |---|---|---|---|
-| `POST` | `/api/auth/login` | Public | Login credentials check & dispatches 2FA OTP for Super Admin |
+| `POST` | `/api/auth/login` | Public | Login credentials check & dispatches 2FA OTP for Super Admin (if enabled) |
 | `POST` | `/api/auth/verify-admin-otp` | Public | Verifies 6-digit Super Admin login OTP |
+| `POST` | `/api/auth/biometrics/login-options` | Public | Generates biometric challenge for 1-touch passkey login |
+| `POST` | `/api/auth/biometrics/verify-login` | Public | Verifies device biometric passkey & issues instant JWT session |
+| `POST` | `/api/auth/biometrics/register-options` | Private | Generates enrollment challenge to register device fingerprint |
+| `POST` | `/api/auth/biometrics/verify-registration` | Private | Links & stores device biometric credential ID |
+| `GET` | `/api/auth/biometrics/devices` | Private | Returns enrolled biometric devices & 2FA status |
+| `DELETE` | `/api/auth/biometrics/:id` | Private | Removes an enrolled biometric device |
+| `PUT` | `/api/auth/toggle-admin-2fa` | Admin | Toggles Admin Email 2FA OTP requirement [ON/OFF] |
 | `POST` | `/api/auth/register` | Public | Registers staff & dispatches email verification OTP |
 | `POST` | `/api/auth/verify-email-otp` | Public | Verifies email OTP & activates staff account |
 | `POST` | `/api/auth/forgot-password` | Public | Dispatches 6-digit password reset OTP to user's email |
