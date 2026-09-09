@@ -7,6 +7,7 @@ import {
   testEmailSettings,
   shareReport,
   syncSecondaryDatabase,
+  runMidnightBackupNow,
 } from '../controllers/backupController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -25,5 +26,6 @@ router.get('/export', exportBackup);
 router.post('/restore', restoreBackup);
 router.post('/test-email', testEmailSettings);
 router.post('/sync-secondary', syncSecondaryDatabase);
+router.post('/run-midnight-now', runMidnightBackupNow);
 
 export default router;

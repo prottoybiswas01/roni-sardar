@@ -404,7 +404,18 @@ export const sendUserBackupEmail = async (
     filter.year = Number(targetYear);
   }
 
-  const userRecords = await Record.find(filter).sort({ date: 1, sl: 1 }).lean();
+  let userRecords = await Record.find(filter).sort({ date: 1, sl: 1 }).lean();
+  let effectiveMonth = targetMonth;
+
+  // If filtered by specific month and zero records found in that month, fallback to all records for this user so they get their full statement
+  if (userRecords.length === 0 && targetMonth && targetMonth !== 'all' && !isMonthlyClosing) {
+    const allUserRecords = await Record.find({ createdBy: userId, isDeleted: { $ne: true } }).sort({ date: 1, sl: 1 }).lean();
+    if (allUserRecords.length > 0) {
+      userRecords = allUserRecords;
+      effectiveMonth = 'all';
+    }
+  }
+
   const dateStr = new Date().toISOString().split('T')[0];
   const nowDisplay = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
@@ -421,9 +432,9 @@ export const sendUserBackupEmail = async (
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December',
   ];
-  const monthLabel = targetMonth && targetMonth !== 'all'
-    ? `${monthNames[Number(targetMonth) - 1] || 'Month ' + targetMonth} ${targetYear || ''}`
-    : 'Cumulative All-Time Records';
+  const monthLabel = effectiveMonth && effectiveMonth !== 'all'
+    ? `${monthNames[Number(effectiveMonth) - 1] || 'Month ' + effectiveMonth} ${targetYear || ''}`
+    : 'Cumulative All-Time Records (সকল রেকর্ড)';
 
   // 1. Generate Formatted Excel (.xlsx) buffer with Ad-din headers & One Call banner
   let excelBuffer = null;
@@ -432,7 +443,7 @@ export const sendUserBackupEmail = async (
       records: userRecords,
       hospitalName,
       location,
-      month: targetMonth,
+      month: effectiveMonth,
       year: targetYear,
     });
   } catch (excelErr) {
@@ -447,7 +458,7 @@ export const sendUserBackupEmail = async (
       staffName: user.name,
       hospitalName,
       location,
-      month: targetMonth,
+      month: effectiveMonth,
       year: targetYear,
       totalAmount,
     });
@@ -692,19 +703,47 @@ export const executeEmailBackup = async (customRecipient = null) => {
   return { success: true, recipient, recordCount: fullBackup.counts.totalRecords };
 };
 
+/**
+ * Helper to get exact Bangladesh (Asia/Dhaka) Date and Time object
+ */
+export const getDhakaDateTime = (date = new Date()) => {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Dhaka',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(date);
+  const partMap = {};
+  for (const p of parts) partMap[p.type] = p.value;
+  return {
+    year: Number(partMap.year),
+    month: Number(partMap.month),
+    day: Number(partMap.day),
+    hour: Number(partMap.hour),
+    minute: Number(partMap.minute),
+    second: Number(partMap.second),
+    dateStr: `${partMap.year}-${partMap.month}-${partMap.day}`,
+  };
+};
+
 // 10. Run Full Midnight Backup Loop for All Users & Monthly Closing Detection
 export const runMidnightAllUsersBackup = async () => {
-  console.log('[Scheduler] Starting midnight automated backup process...');
-  const settings = await Settings.findOne();
-  const now = new Date();
+  console.log('[Scheduler] 🚀 Starting midnight automated backup dispatch process...');
+  const settings = (await Settings.findOne()) || {};
+  const dhakaNow = getDhakaDateTime(new Date());
 
   // 1. Save local disk snapshot
-  await saveLocalSnapshot();
+  await saveLocalSnapshot().catch(() => {});
 
   // 2. Determine if tonight is Monthly Closing (1st day of month -> closing previous month)
-  const isFirstDayOfMonth = now.getDate() === 1;
-  let targetMonth = now.getMonth() + 1; // default current month
-  let targetYear = now.getFullYear();
+  const isFirstDayOfMonth = dhakaNow.day === 1;
+  let targetMonth = dhakaNow.month; // default current month
+  let targetYear = dhakaNow.year;
 
   if (isFirstDayOfMonth) {
     // 1st of month means previous month just completed
@@ -718,12 +757,13 @@ export const runMidnightAllUsersBackup = async () => {
 
   // 3. Find target users:
   // On Monthly Closing (1st of month): 100% ALWAYS delivered to ALL active staff & admins
-  // On regular daily midnight: delivered only if autoEmailBackup is ON
+  // On regular daily midnight: delivered only if autoEmailBackup is ON (true / not false)
   const userQuery = isFirstDayOfMonth
     ? { status: { $in: ['active', 'pending'] } }
     : { status: { $in: ['active', 'pending'] }, autoEmailBackup: { $ne: false } };
 
   const activeUsers = await User.find(userQuery).lean();
+  console.log(`[Scheduler] Found ${activeUsers.length} user(s) with autoEmailBackup enabled.`);
 
   let sentCount = 0;
   const errors = [];
@@ -735,29 +775,31 @@ export const runMidnightAllUsersBackup = async () => {
     try {
       await sendUserBackupEmail(user._id, userEmail, targetMonth, targetYear, isFirstDayOfMonth);
       sentCount++;
-      console.log(`[Scheduler] Backup delivered to: ${user.name} <${userEmail}> (Month: ${targetMonth}/${targetYear}, Monthly Closing: ${isFirstDayOfMonth})`);
+      console.log(`[Scheduler] ✅ Backup successfully delivered to: ${user.name} <${userEmail}> (Month: ${targetMonth}/${targetYear}, Monthly Closing: ${isFirstDayOfMonth})`);
     } catch (err) {
-      console.error(`[Scheduler] Failed delivering to ${user.email}:`, err.message);
+      console.error(`[Scheduler] ❌ Failed delivering to ${user.email}:`, err.message);
       errors.push({ user: user.email, error: err.message });
     }
   }
 
-  // 4. Send Master DB Snapshot to Super Admin (100% on monthly closing or if enabled)
-  const shouldSendAdminMaster = isFirstDayOfMonth || (settings && settings.autoEmailBackup !== false);
-  if (settings && shouldSendAdminMaster && settings.backupEmail) {
+  // 4. Send Master DB Snapshot to Super Admin (100% on monthly closing or if enabled in settings)
+  const shouldSendAdminMaster = isFirstDayOfMonth || settings.autoEmailBackup !== false;
+  if (shouldSendAdminMaster && settings.backupEmail) {
     try {
       await executeEmailBackup(settings.backupEmail);
-      console.log(`[Scheduler] Master database backup delivered to Admin: ${settings.backupEmail}`);
+      console.log(`[Scheduler] 🛡️ Master database backup delivered to Admin: ${settings.backupEmail}`);
     } catch (err) {
       console.error(`[Scheduler] Master backup email error:`, err.message);
     }
   }
 
-  if (settings) {
-    settings.lastBackupAt = new Date();
-    settings.lastBackupStatus = errors.length > 0 ? 'error' : 'success';
-    settings.lastBackupMessage = `Backup finished for Month ${targetMonth}/${targetYear} (${isFirstDayOfMonth ? 'Monthly Closing (100% Delivered)' : 'Daily'}). Delivered to ${sentCount} users.`;
-    await settings.save();
+  const updatedSettings = await Settings.findOne();
+  if (updatedSettings) {
+    updatedSettings.lastBackupAt = new Date();
+    updatedSettings.lastMidnightRunDate = dhakaNow.dateStr;
+    updatedSettings.lastBackupStatus = errors.length > 0 ? 'error' : 'success';
+    updatedSettings.lastBackupMessage = `Midnight backup finished for ${dhakaNow.dateStr} (Month ${targetMonth}/${targetYear}). Delivered to ${sentCount} user(s).`;
+    await updatedSettings.save();
   }
 
   return { sentCount, errorsCount: errors.length, isFirstDayOfMonth, targetMonth, targetYear };
@@ -844,43 +886,55 @@ export const restoreDatabaseFromJson = async (jsonData) => {
 
 // 12. Automated Daily Midnight & Monthly Closing Scheduler
 let schedulerInitialized = false;
+let isBackupRunning = false;
 
 export const initDailyBackupScheduler = () => {
   if (schedulerInitialized) return;
   schedulerInitialized = true;
 
   // Run a local snapshot immediately on startup
-  saveLocalSnapshot();
+  saveLocalSnapshot().catch(() => {});
 
-  // Check every 20 minutes if midnight has crossed and backup is due
-  const CHECK_INTERVAL = 20 * 60 * 1000;
+  // Check every 30 seconds for accurate midnight trigger in Asia/Dhaka time (12:00 AM BD Time)
+  const CHECK_INTERVAL = 30 * 1000;
   setInterval(async () => {
+    if (isBackupRunning) return;
+
     try {
       const now = new Date();
-      // Check if it's within the midnight window (between 00:00 and 00:30)
-      if (now.getHours() === 0 && now.getMinutes() <= 30) {
-        const isFirstDayOfMonth = now.getDate() === 1;
+      const dhakaTime = getDhakaDateTime(now);
+
+      // Trigger condition:
+      // When it is midnight hour (00:00 - 00:59) in Bangladesh Standard Time (UTC+6)
+      if (dhakaTime.hour === 0) {
         const settings = await Settings.findOne();
+        const lastMidnightDate = settings?.lastMidnightRunDate || '';
 
-        // Run if autoEmailBackup is active OR if tonight is the 1st of month (Mandatory Monthly Closing)
-        if (isFirstDayOfMonth || (settings && settings.autoEmailBackup !== false)) {
-          const lastBackup = settings?.lastBackupAt ? new Date(settings.lastBackupAt) : null;
-          const todayDateStr = now.toISOString().split('T')[0];
-          const lastDateStr = lastBackup ? lastBackup.toISOString().split('T')[0] : '';
+        // Only run once per calendar day in Bangladesh time
+        if (lastMidnightDate !== dhakaTime.dateStr) {
+          isBackupRunning = true;
+          console.log(`[Scheduler] ⏰ Bangladesh Midnight (12:00 AM) detected for date ${dhakaTime.dateStr}. Triggering automated daily backup...`);
 
-          // Only run once per day
-          if (todayDateStr !== lastDateStr) {
-            console.log(`[Scheduler] Midnight backup triggered (Monthly Closing: ${isFirstDayOfMonth})...`);
+          // Mark date immediately to prevent race conditions / duplicate runs
+          if (settings) {
+            settings.lastMidnightRunDate = dhakaTime.dateStr;
+            await settings.save();
+          }
+
+          try {
             await runMidnightAllUsersBackup();
+          } finally {
+            isBackupRunning = false;
           }
         }
       }
     } catch (err) {
-      console.error('[Scheduler] Automatic daily backup error:', err.message);
+      isBackupRunning = false;
+      console.error('[Scheduler] Automatic daily midnight backup error:', err.message);
     }
   }, CHECK_INTERVAL);
 
-  console.log('[Scheduler] Daily midnight & monthly closing automated backup scheduler initialized.');
+  console.log('[Scheduler] ⏰ Daily midnight (12:00 AM BD Time) automated email backup scheduler initialized successfully.');
 };
 
 // 13. Send On-Demand Share / Print / Boss Export Email with PDF & Excel

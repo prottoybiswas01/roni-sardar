@@ -94,6 +94,10 @@ const settingsSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    lastMidnightRunDate: {
+      type: String,
+      default: null,
+    },
   },
   {
     timestamps: true,

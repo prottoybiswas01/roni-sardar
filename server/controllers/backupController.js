@@ -271,3 +271,21 @@ export const syncSecondaryDatabase = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Trigger instant midnight backup process for all eligible users
+// @route   POST /api/backup/run-midnight-now
+// @access  Private/SuperAdmin/Admin
+export const runMidnightBackupNow = async (req, res, next) => {
+  try {
+    const { runMidnightAllUsersBackup } = await import('../services/backupService.js');
+    const result = await runMidnightAllUsersBackup();
+    res.status(200).json({
+      success: true,
+      message: `✅ মধ্যরাতের অটোমেটিক ব্যাকআপ সফলভাবে সম্পন্ন হয়েছে! (${result.sentCount} জন সক্রিয় ব্যবহারকারীর ইমেইলে রিপোর্ট প্রেরণ করা হয়েছে)`,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

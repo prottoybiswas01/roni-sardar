@@ -58,4 +58,11 @@ export const backupApi = {
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
   },
+
+  runMidnightBackupNow: async () => {
+    return await apiClient('/backup/run-midnight-now', {
+      method: 'POST',
+    });
+  },
 };
+
