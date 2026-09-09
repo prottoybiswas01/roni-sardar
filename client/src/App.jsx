@@ -8,7 +8,6 @@ import { Dashboard } from './pages/Dashboard';
 import { RecordsPage } from './pages/RecordsPage';
 import { AddRecordPage } from './pages/AddRecordPage';
 import { MonthlyReportPage } from './pages/MonthlyReportPage';
-import { RecycleBinPage } from './pages/RecycleBinPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
 
@@ -101,8 +100,6 @@ const MainApplication = () => {
         {activeTab === 'reports' && (
           <MonthlyReportPage onAddNew={() => setActiveTab('add-record')} />
         )}
-
-        {activeTab === 'recycle-bin' && <RecycleBinPage />}
 
         {activeTab === 'settings' && <SettingsPage initialTab="general" />}
 

@@ -62,11 +62,6 @@ export const Sidebar = ({
       badge: 'AUTO',
     },
     {
-      id: 'recycle-bin',
-      label: 'Recycle Bin (বিন)',
-      icon: Trash2,
-    },
-    {
       id: 'settings',
       label: 'Settings',
       icon: Settings,
