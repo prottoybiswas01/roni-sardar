@@ -128,6 +128,10 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
   }, [activeTab, fetchBiometricsData]);
 
   const handleEnrollBiometrics = async () => {
+    if (!biometricService.isMobileDevice()) {
+      toast.info('📱 ফিঙ্গারপ্রিন্ট যুক্ত করার জন্য অনুগ্রহ করে আপনার মোবাইল ফোন থেকে এই পোর্টালে লগইন করে সেটিংসে আসুন।');
+      return;
+    }
     try {
       setIsEnrollingBiometrics(true);
       const res = await biometricService.registerDevice(customDeviceLabel.trim());

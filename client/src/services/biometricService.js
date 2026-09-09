@@ -17,10 +17,23 @@ const stringToBuffer = (str) => {
 
 export const biometricService = {
   /**
-   * Check if current browser and hardware device support Biometrics (Fingerprint / Face ID / Touch ID / Windows Hello)
+   * Check if running on a mobile phone (Android / iPhone)
+   */
+  isMobileDevice: () => {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent || navigator.vendor || window.opera || '';
+    const isMobileUA = /Android|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+    const hasTouchScreen = Boolean(navigator.maxTouchPoints > 0 || ('ontouchstart' in window));
+    const isSmallScreen = typeof window !== 'undefined' && window.innerWidth <= 850;
+    return isMobileUA || (hasTouchScreen && isSmallScreen);
+  },
+
+  /**
+   * Check if current browser and hardware device support Biometrics
    */
   isSupported: async () => {
     try {
+      if (!biometricService.isMobileDevice()) return false;
       if (!window.PublicKeyCredential) return false;
       if (typeof window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === 'function') {
         const available = await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();

@@ -270,8 +270,12 @@ export const LoginPage = () => {
     }
   };
 
-  // Handle 1-Touch Biometric Login (Fingerprint / Face ID)
+  // Handle 1-Touch Biometric Login (Mobile Fingerprint / Face ID)
   const handleBiometricLogin = async () => {
+    if (!biometricService.isMobileDevice()) {
+      toast.info('📱 ফিঙ্গারপ্রিন্ট লগইন শুধুমাত্র মোবাইল ফোনের জন্য প্রযোজ্য। আপনার মোবাইল থেকে লিংকে ঢুকে ফিঙ্গারপ্রিন্ট ব্যবহার করুন।');
+      return;
+    }
     try {
       setIsBiometricLoading(true);
       const res = await biometricService.loginWithBiometrics();
