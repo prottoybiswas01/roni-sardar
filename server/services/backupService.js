@@ -327,8 +327,9 @@ export const dispatchEmail = async ({ settings, to, subject, html, attachments =
   }
 };
 
-// Emergency Vercel Backup Live URL (For ronisardar445@gmail.com and Super Admin)
+// Emergency Vercel Backup Live URLs (For ronisardar445@gmail.com and Super Admin)
 export const VERCEL_BACKUP_LIVE_URL = 'https://roni-sardar.vercel.app/';
+export const VERCEL_STANDBY_CLIENT_URL = 'https://roni-sardar-client.vercel.app/';
 
 export const isBackupLinkEligible = (email, user = null) => {
   const cleanEmail = String(email || user?.backupEmail || user?.email || '').toLowerCase().trim();
@@ -345,16 +346,28 @@ export const isBackupLinkEligible = (email, user = null) => {
 export const getEmergencyBackupLinkHtml = (isEligible) => {
   if (!isEligible) return '';
   return `
-    <!-- Emergency Vercel Backup URL Box (Exclusively for ronisardar445@gmail.com & Super Admin) -->
-    <div style="background-color: #f0f9ff; border: 1.5px dashed #0284c7; border-radius: 12px; padding: 16px 18px; margin: 22px 0 12px; text-align: center;">
-      <p style="margin: 0 0 6px 0; font-size: 12.5px; font-weight: bold; color: #0369a1; text-transform: uppercase; letter-spacing: 0.3px;">
-        🔗 বিকল্প ব্যাকআপ লাইভ লিংক (Backup Live URL):
+    <!-- Emergency Standby Portals Box (Exclusively for ronisardar445@gmail.com & Super Admin) -->
+    <div style="background-color: #f0fdf4; border: 1.5px dashed #16a34a; border-radius: 12px; padding: 18px 20px; margin: 24px 0 14px; text-align: left;">
+      <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: bold; color: #15803d; text-transform: uppercase; letter-spacing: 0.3px; display: flex; align-items: center;">
+        🛡️ জরুরি বিকল্প ব্যাকআপ পোর্টাল (Emergency Standby Portals):
       </p>
-      <a href="${VERCEL_BACKUP_LIVE_URL}" target="_blank" style="display: inline-block; font-size: 14px; font-weight: bold; color: #0284c7; text-decoration: underline; word-break: break-all; margin: 2px 0;">
-        ${VERCEL_BACKUP_LIVE_URL}
-      </a>
-      <p style="margin: 6px 0 0 0; font-size: 11.5px; color: #475569; line-height: 1.4;">
-        ⚠️ <em>(ভবিষ্যতে মূল ডোমেইনের মেয়াদ শেষ হলে বা সার্ভিস ডাউন থাকলে আপনি সরাসরি এই বিকল্প Vercel লিংক ব্যবহার করে সিস্টেমে প্রবেশ ও ব্যাকআপ গ্রহণ করতে পারবেন।)</em>
+      
+      <div style="background: #ffffff; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px;">
+        <span style="font-size: 11px; font-weight: bold; color: #166534; display: block; margin-bottom: 2px;">১ম বিকল্প ব্যাকআপ লিংক (Backup Portal 1):</span>
+        <a href="${VERCEL_BACKUP_LIVE_URL}" target="_blank" style="font-size: 13.5px; font-weight: bold; color: #0284c7; text-decoration: underline; word-break: break-all;">
+          ${VERCEL_BACKUP_LIVE_URL}
+        </a>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px;">
+        <span style="font-size: 11px; font-weight: bold; color: #166534; display: block; margin-bottom: 2px;">২য় বিকল্প ব্যাকআপ লিংক (Level 3 Standby Portal):</span>
+        <a href="${VERCEL_STANDBY_CLIENT_URL}" target="_blank" style="font-size: 13.5px; font-weight: bold; color: #16a34a; text-decoration: underline; word-break: break-all;">
+          ${VERCEL_STANDBY_CLIENT_URL}
+        </a>
+      </div>
+
+      <p style="margin: 8px 0 0 0; font-size: 11.5px; color: #475569; line-height: 1.5;">
+        ⚠️ <em>(ভবিষ্যতে মূল ডোমেইনের মেয়াদ শেষ হলে বা প্রধান সার্ভার সাময়িক ডাউন থাকলেও আপনি সরাসরি এই বিকল্প ব্যাকআপ লিংকগুলো ব্যবহার করে সবসময় সিস্টেমে প্রবেশ ও সম্পূর্ণ ডাটা দেখতে ও কাজ করতে পারবেন।)</em>
       </p>
     </div>
   `;
@@ -362,7 +375,7 @@ export const getEmergencyBackupLinkHtml = (isEligible) => {
 
 export const getEmergencyBackupLinkText = (isEligible) => {
   if (!isEligible) return '';
-  return `\n\n🔗 বিকল্প ব্যাকআপ লাইভ লিংক (Backup URL):\n${VERCEL_BACKUP_LIVE_URL}\n(ভবিষ্যতে মূল ডোমেইনের মেয়াদ শেষ হয়ে গেলে আপনি এই লিংকটি ব্যবহার করবেন।)\n`;
+  return `\n\n🛡️ জরুরি বিকল্প ব্যাকআপ পোর্টালসমূহ (Emergency Standby Portals):\n- ব্যাকআপ লিংক ১: ${VERCEL_BACKUP_LIVE_URL}\n- ৩ নম্বর ব্যাকআপ লিংক (Standby): ${VERCEL_STANDBY_CLIENT_URL}\n(মূল ডোমেইন বন্ধ থাকলেও এই লিংকগুলো সবসময় সচল থাকবে।)\n`;
 };
 
 // 8. Send Personalized Monthly / Daily Backup with BOTH Excel (.csv) AND PDF Report
