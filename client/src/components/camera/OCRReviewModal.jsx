@@ -90,7 +90,17 @@ export const OCRReviewModal = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Review Extracted OCR Data"
+      title={
+        <div className="flex items-center gap-2">
+          <span>Review Extracted Record Data</span>
+          {ocrData.engine && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300">
+              <Sparkles className="w-3 h-3 text-emerald-600" />
+              {ocrData.engine}
+            </span>
+          )}
+        </div>
+      }
       subtitle="Verify and correct the extracted information before populating your record"
       maxWidth="max-w-2xl"
     >
