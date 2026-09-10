@@ -1,4 +1,3 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { executePythonOCR } from './ocrPythonService.js';
 
 /**
@@ -22,10 +21,11 @@ export const processDocumentOCR = async (imageBase64) => {
     throw new Error('No image payload provided');
   }
 
-  // 1. Check Gemini Vision AI
+  // 1. Check Gemini Vision AI if API key is provided
   const apiKey = process.env.GEMINI_API_KEY;
   if (apiKey && apiKey.trim()) {
     try {
+      const { GoogleGenerativeAI } = await import('@google/generative-ai');
       const genAI = new GoogleGenerativeAI(apiKey.trim());
       const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
