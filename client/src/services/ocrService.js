@@ -106,7 +106,7 @@ export const preprocessImageForOCR = (imageSource) => {
           const b = data[i + 2];
 
           // Check if pixel is part of red watermark / red stamp
-          if (r > 90 && (r > g + 25 || r > b + 25)) {
+          if (r > 85 && (r > g + 20 || r > b + 20)) {
             // Fade red watermark to clean paper white
             grayData[j] = 255;
           } else {
@@ -120,41 +120,42 @@ export const preprocessImageForOCR = (imageSource) => {
 
         // Step 2: Auto-Level & High-Contrast Curve (Normalize weak camera exposure)
         const range = Math.max(1, maxGray - minGray);
-        const contrastFactor = 1.45; // Enhanced contrast for faint dot-matrix ink
+        const contrastFactor = 1.6; // Enhanced contrast for faint dot-matrix ink
+        const binarized = new Uint8Array(width * height);
 
         for (let j = 0; j < grayData.length; j++) {
           let normalized = ((grayData[j] - minGray) / range) * 255;
-          // Apply contrast curve
           let val = (normalized - 128) * contrastFactor + 128;
-          // Slight threshold boost for crisp ink on paper
-          if (val > 185) val = 255;
-          else if (val < 90) val = Math.max(0, val * 0.7);
-
-          grayData[j] = Math.max(0, Math.min(255, val));
+          binarized[j] = val < 165 ? 0 : 255; // 0 = Ink, 255 = Paper
         }
 
-        // Step 3: 3x3 Sharpening Convolution to connect dot-matrix pin points
-        // Kernel: [ 0, -0.5, 0, -0.5, 3.0, -0.5, 0, -0.5, 0 ]
+        // Step 3: Morphological Dilation / Pin-Bridge Kernel for Dot-Matrix characters
+        // Fills the micro-gaps between needle pin points to form solid continuous letters
+        const bridged = new Uint8Array(width * height);
+        bridged.fill(255);
+
         for (let y = 1; y < height - 1; y++) {
           for (let x = 1; x < width - 1; x++) {
             const idx = y * width + x;
-            const top = (y - 1) * width + x;
-            const bottom = (y + 1) * width + x;
-            const left = y * width + (x - 1);
-            const right = y * width + (x + 1);
-
-            const centerVal = grayData[idx];
-            const sharpVal =
-              3.0 * centerVal -
-              0.5 * (grayData[top] + grayData[bottom] + grayData[left] + grayData[right]);
-
-            const finalPixel = Math.max(0, Math.min(255, sharpVal));
-            const pIdx = idx * 4;
-            data[pIdx] = finalPixel;
-            data[pIdx + 1] = finalPixel;
-            data[pIdx + 2] = finalPixel;
-            data[pIdx + 3] = 255;
+            if (binarized[idx] === 0) {
+              // Current pixel is ink -> dilate slightly
+              bridged[idx] = 0;
+              bridged[idx - 1] = 0; // Left
+              bridged[idx + 1] = 0; // Right
+              bridged[(y - 1) * width + x] = 0; // Top
+              bridged[(y + 1) * width + x] = 0; // Bottom
+            }
           }
+        }
+
+        // Step 4: Write back to image data
+        for (let j = 0; j < bridged.length; j++) {
+          const val = bridged[j];
+          const pIdx = j * 4;
+          data[pIdx] = val;
+          data[pIdx + 1] = val;
+          data[pIdx + 2] = val;
+          data[pIdx + 3] = 255;
         }
 
         ctx.putImageData(imageData, 0, 0);
@@ -506,7 +507,7 @@ export const runOCR = async (imageInput, onProgress = () => {}) => {
 
     // Configure Tesseract parameters for medical receipt dot-matrix parsing
     await worker.setParameters({
-      tessedit_pageseg_mode: '3',
+      tessedit_pageseg_mode: '6', // Assume a single uniform block of text (ideal for receipts)
       tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz/.:-() %,#\'+',
     });
 

@@ -107,16 +107,18 @@ def preprocess_image_for_ocr(img):
     gray[red_mask] = 255
 
     # Step 2: Contrast Limited Adaptive Histogram Equalization (CLAHE)
-    clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
+    clahe = cv2.createCLAHE(clipLimit=2.8, tileGridSize=(8, 8))
     enhanced = clahe.apply(gray)
 
-    # Step 3: Dot-Matrix Sharpening Filter
-    # Connects faint printer pin points
-    gaussian = cv2.GaussianBlur(enhanced, (0, 0), 2.0)
-    unsharp = cv2.addWeighted(enhanced, 1.6, gaussian, -0.6, 0)
+    # Step 3: Dot-Matrix Pin Connection Filter
+    # Dilate dark needle-points slightly to bridge gaps between ribbon dots
+    _, thresh = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+    dilated = cv2.dilate(thresh, kernel, iterations=1)
+    cleaned = cv2.bitwise_not(dilated)
 
     # Convert back to 3-channel for RapidOCR
-    processed_bgr = cv2.cvtColor(unsharp, cv2.COLOR_GRAY2BGR)
+    processed_bgr = cv2.cvtColor(cleaned, cv2.COLOR_GRAY2BGR)
     return processed_bgr
 
 def normalize_year(yr_str):
