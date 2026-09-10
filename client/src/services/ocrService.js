@@ -417,30 +417,74 @@ export const parseExtractedText = (rawText, overallConfidence = 70) => {
 };
 
 /**
+ * Compress image before sending over network to maximize speed and prevent 413 errors
+ */
+export const compressImageForUpload = (imageSource) => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const maxDim = 1800;
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.88));
+      } catch (e) {
+        resolve(imageSource);
+      }
+    };
+    img.onerror = () => resolve(imageSource);
+    img.src = imageSource;
+  });
+};
+
+/**
  * Execute OCR Recognition:
- * 1. Primary: Server-side Python Deep Learning + OpenCV Engine (Maximum Accuracy)
+ * 1. Primary: Server-side Deep Learning (Gemini Vision AI / Python OpenCV + RapidOCR)
  * 2. Fallback: Client-side WebAssembly Tesseract.js (Offline Backup)
  */
 export const runOCR = async (imageInput, onProgress = () => {}) => {
-  // Try Primary Engine: Python Deep Learning + OpenCV Backend
+  // Try Primary Engine: Server-Side AI & Python Engine
   try {
     onProgress({
-      status: 'পাইথন কম্পিউটার ভিশন ও ডিপ লার্নিং (OpenCV + ML) ইঞ্জিনে প্রসেস হচ্ছে...',
-      progress: 0.35,
-      engine: 'Python ML Engine',
+      status: 'ইমেজ অপটিমাইজ ও এআই/পাইথন ইঞ্জিনে পাঠানো হচ্ছে...',
+      progress: 0.2,
+      engine: 'AI / Python Engine',
     });
 
-    const response = await recordsApi.scanOCR(imageInput);
+    const uploadPayload = await compressImageForUpload(imageInput);
+
+    onProgress({
+      status: 'ডকুমেন্ট ও ল্যাব আইডি বিশ্লেষণ করা হচ্ছে...',
+      progress: 0.5,
+      engine: 'AI / Python Engine',
+    });
+
+    const response = await recordsApi.scanOCR(uploadPayload);
     if (response && response.success && response.data) {
       onProgress({
-        status: 'ল্যাব আইডি (৬ সংখ্যা), নাম ও তারিখ এক্সট্রাক্ট সম্পন্ন হয়েছে!',
+        status: 'ল্যাব আইডি (৬ সংখ্যা), নাম ও তারিখ এক্সট্রাক্ট সম্পন্ন!',
         progress: 1.0,
-        engine: 'Python ML Engine',
+        engine: response.data.engine || 'Python Deep Learning OCR',
       });
       return response.data;
     }
   } catch (backendError) {
-    console.warn('[Python OCR Backend Error / Offline fallback triggered]:', backendError);
+    console.warn('[Server OCR Error / Client fallback triggered]:', backendError);
   }
 
   // Fallback Engine: Client-Side Tesseract.js Worker
