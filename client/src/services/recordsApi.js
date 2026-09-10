@@ -80,5 +80,12 @@ export const recordsApi = {
     const queryString = query.toString() ? `?${query.toString()}` : '';
     return await apiClient(`/records/monthly-counts${queryString}`);
   },
+
+  scanOCR: async (imageBase64) => {
+    return await apiClient('/records/scan-ocr', {
+      method: 'POST',
+      body: JSON.stringify({ image: imageBase64 }),
+    });
+  },
 };
 

@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import Record from '../models/Record.js';
+import { executePythonOCR } from '../services/ocrPythonService.js';
 
 // Helper: Calculate next SL number for a given month, year, and specific user
 const getNextSequenceNumber = async (month, year, userId = null) => {
@@ -627,5 +628,34 @@ export const getMonthlyCounts = async (req, res, next) => {
     });
   } catch (error) {
     next(error);
+  }
+};
+
+// @desc    Process document / receipt image using Python OpenCV + Deep Learning OCR
+// @route   POST /api/records/scan-ocr
+// @access  Private
+export const processOCRImage = async (req, res, next) => {
+  try {
+    const { image } = req.body;
+
+    if (!image) {
+      return res.status(400).json({
+        success: false,
+        message: 'No image provided for OCR processing',
+      });
+    }
+
+    const ocrResult = await executePythonOCR(image);
+
+    res.status(200).json({
+      success: true,
+      data: ocrResult,
+    });
+  } catch (error) {
+    console.error('[OCR Controller Error]:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to process document with Python OCR Engine',
+    });
   }
 };

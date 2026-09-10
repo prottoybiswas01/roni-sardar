@@ -154,7 +154,15 @@ export const CameraScannerModal = ({
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title="Document Scanner & OCR"
+      title={
+        <div className="flex items-center gap-2">
+          <span>Document Scanner & OCR</span>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-700/50">
+            <Zap className="w-3 h-3 text-emerald-500 fill-emerald-500" />
+            Python Deep Learning OCR
+          </span>
+        </div>
+      }
       subtitle="Position the patient document, wristband, or over duty sheet in the scanning frame"
       maxWidth="max-w-2xl"
     >
@@ -207,12 +215,21 @@ export const CameraScannerModal = ({
 
               {/* Processing Overlay */}
               {isProcessing && (
-                <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-white text-center z-20">
-                  <Loader2 className="w-10 h-10 text-brand-400 animate-spin mb-3" />
-                  <p className="font-semibold text-sm sm:text-base">{ocrProgress.status || 'Processing image...'}</p>
-                  <div className="w-64 max-w-full bg-slate-800 rounded-full h-2 mt-4 overflow-hidden">
+                <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-white text-center z-20">
+                  <div className="relative mb-3">
+                    <Loader2 className="w-12 h-12 text-brand-400 animate-spin" />
+                    <Zap className="w-5 h-5 text-amber-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
+                  </div>
+                  {ocrProgress.engine && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-brand-500/20 text-brand-300 border border-brand-500/30 mb-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                      {ocrProgress.engine}
+                    </span>
+                  )}
+                  <p className="font-semibold text-sm sm:text-base max-w-sm">{ocrProgress.status || 'Processing image...'}</p>
+                  <div className="w-64 max-w-full bg-slate-800 rounded-full h-2 mt-4 overflow-hidden border border-slate-700">
                     <div
-                      className="bg-brand-500 h-full transition-all duration-300 rounded-full"
+                      className="bg-gradient-to-r from-brand-500 to-emerald-400 h-full transition-all duration-300 rounded-full"
                       style={{ width: `${Math.round(ocrProgress.progress * 100)}%` }}
                     />
                   </div>

@@ -1,5 +1,6 @@
 import { createWorker } from 'tesseract.js';
 import { formatHospitalTime } from '../utils/dateUtils';
+import { recordsApi } from './recordsApi';
 
 /**
  * Month names mapping for date extraction
@@ -416,33 +417,77 @@ export const parseExtractedText = (rawText, overallConfidence = 70) => {
 };
 
 /**
- * Execute OCR Recognition using Tesseract.js worker with optimized settings
+ * Execute OCR Recognition:
+ * 1. Primary: Server-side Python Deep Learning + OpenCV Engine (Maximum Accuracy)
+ * 2. Fallback: Client-side WebAssembly Tesseract.js (Offline Backup)
  */
 export const runOCR = async (imageInput, onProgress = () => {}) => {
+  // Try Primary Engine: Python Deep Learning + OpenCV Backend
+  try {
+    onProgress({
+      status: 'পাইথন কম্পিউটার ভিশন ও ডিপ লার্নিং (OpenCV + ML) ইঞ্জিনে প্রসেস হচ্ছে...',
+      progress: 0.35,
+      engine: 'Python ML Engine',
+    });
+
+    const response = await recordsApi.scanOCR(imageInput);
+    if (response && response.success && response.data) {
+      onProgress({
+        status: 'ল্যাব আইডি (৬ সংখ্যা), নাম ও তারিখ এক্সট্রাক্ট সম্পন্ন হয়েছে!',
+        progress: 1.0,
+        engine: 'Python ML Engine',
+      });
+      return response.data;
+    }
+  } catch (backendError) {
+    console.warn('[Python OCR Backend Error / Offline fallback triggered]:', backendError);
+  }
+
+  // Fallback Engine: Client-Side Tesseract.js Worker
   let worker = null;
   try {
-    onProgress({ status: 'ছবি প্রসেসিং ও পরিষ্কার করা হচ্ছে (Optimizing for low-light & dot-matrix)...', progress: 0.1 });
+    onProgress({
+      status: 'লোকাল ক্লায়েন্ট ইঞ্জিনে ছবি পরিষ্কার ও অপটিমাইজ করা হচ্ছে...',
+      progress: 0.2,
+      engine: 'Client Local Engine',
+    });
     const processedImage = await preprocessImageForOCR(imageInput);
 
-    onProgress({ status: 'OCR ইঞ্জিন চালু হচ্ছে...', progress: 0.25 });
+    onProgress({
+      status: 'লোকাল OCR ইঞ্জিন চালু হচ্ছে...',
+      progress: 0.45,
+      engine: 'Client Local Engine',
+    });
     worker = await createWorker('eng');
 
     // Configure Tesseract parameters for medical receipt dot-matrix parsing
     await worker.setParameters({
-      tessedit_pageseg_mode: '3', // Fully automatic page segmentation without OSD
+      tessedit_pageseg_mode: '3',
       tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz/.:-() %,#\'+',
     });
 
-    onProgress({ status: 'রশিদ স্ক্যান ও তথ্য বিশ্লেষণ করা হচ্ছে...', progress: 0.55 });
+    onProgress({
+      status: 'রশিদ স্ক্যান ও তথ্য বিশ্লেষণ করা হচ্ছে...',
+      progress: 0.75,
+      engine: 'Client Local Engine',
+    });
     const result = await worker.recognize(processedImage);
 
-    onProgress({ status: 'ল্যাব আইডি (৬ সংখ্যা), নাম ও তারিখ এক্সট্রাক্ট করা হচ্ছে...', progress: 0.95 });
+    onProgress({
+      status: 'ল্যাব আইডি (৬ সংখ্যা), নাম ও তারিখ এক্সট্রাক্ট করা হচ্ছে...',
+      progress: 0.95,
+      engine: 'Client Local Engine',
+    });
     const parsed = parseExtractedText(result.data.text, result.data.confidence);
 
-    onProgress({ status: 'সম্পন্ন হয়েছে!', progress: 1.0 });
+    onProgress({
+      status: 'সম্পন্ন হয়েছে!',
+      progress: 1.0,
+      engine: 'Client Local Engine',
+    });
     return parsed;
   } catch (error) {
-    console.error('OCR Error:', error);
+    console.error('OCR Fallback Error:', error);
     throw new Error(`OCR processing failed: ${error.message || 'Unable to recognize text'}`);
   } finally {
     if (worker) {
