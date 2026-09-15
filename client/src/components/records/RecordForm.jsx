@@ -351,7 +351,7 @@ export const RecordForm = ({
           <div className="flex items-center justify-between">
             <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-brand-600" />
-              Time (12-Hour) <span className="text-rose-500">*</span>
+              Time (24-Hour) <span className="text-rose-500">*</span>
             </label>
             <div className="flex items-center gap-1">
               <button
@@ -359,25 +359,10 @@ export const RecordForm = ({
                 onClick={() => {
                   setFormData((prev) => ({ ...prev, time: getCurrentHospitalTime() }));
                 }}
-                className="text-[10px] text-brand-700 hover:text-brand-800 bg-brand-50 hover:bg-brand-100 px-1.5 py-0.5 rounded font-medium transition-colors"
-                title="Set current 12-hour time"
+                className="text-[10px] text-brand-700 hover:text-brand-800 bg-brand-50 hover:bg-brand-100 px-2 py-0.5 rounded font-medium transition-colors"
+                title="Set current 24-hour time"
               >
                 Now
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setFormData((prev) => {
-                    const cur = prev.time || '';
-                    if (cur.includes('PM')) return { ...prev, time: cur.replace('PM', 'AM') };
-                    if (cur.includes('AM')) return { ...prev, time: cur.replace('AM', 'PM') };
-                    return { ...prev, time: cur + 'AM' };
-                  });
-                }}
-                className="text-[10px] text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded font-medium transition-colors"
-                title="Toggle AM / PM"
-              >
-                AM/PM
               </button>
             </div>
           </div>
@@ -387,7 +372,12 @@ export const RecordForm = ({
               name="time"
               value={formData.time}
               onChange={handleChange}
-              placeholder="e.g. 07.30PM or 12.35AM"
+              onBlur={() => {
+                if (formData.time) {
+                  setFormData((prev) => ({ ...prev, time: formatHospitalTime(prev.time) }));
+                }
+              }}
+              placeholder="e.g. 14:30 or 08:45"
               className={`w-full rounded-lg border font-mono px-3 py-2 text-sm text-slate-900 focus-ring ${
                 errors.time ? 'border-rose-300 bg-rose-50/40' : 'border-slate-300'
               }`}
@@ -398,12 +388,7 @@ export const RecordForm = ({
                 type="time"
                 onChange={(e) => {
                   if (!e.target.value) return;
-                  const [hStr, mStr] = e.target.value.split(':');
-                  let hNum = parseInt(hStr, 10);
-                  const period = hNum >= 12 ? 'PM' : 'AM';
-                  hNum = hNum % 12 || 12;
-                  const formatted = `${String(hNum).padStart(2, '0')}.${mStr}${period}`;
-                  setFormData((prev) => ({ ...prev, time: formatted }));
+                  setFormData((prev) => ({ ...prev, time: e.target.value }));
                 }}
                 className="w-9 h-9 p-1.5 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer text-xs"
               />

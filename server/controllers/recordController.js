@@ -2,6 +2,34 @@ import mongoose from 'mongoose';
 import Record from '../models/Record.js';
 import { processDocumentOCR } from '../services/ocrMasterService.js';
 
+// Helper: Format / normalize any time string into clean 24-hour HH:mm international format
+export const normalizeTo24HourTime = (timeStr) => {
+  if (!timeStr) return '';
+  const trimmed = String(timeStr).trim().toUpperCase();
+  const match = trimmed.match(/^(\d{1,2})[:.](\d{2})(?::\d{2})?\s*(AM|PM)?$/i);
+  if (match) {
+    let h = parseInt(match[1], 10);
+    const m = match[2];
+    const p = match[3] ? match[3].toUpperCase() : null;
+    if (p === 'PM' && h < 12) h += 12;
+    if (p === 'AM' && h === 12) h = 0;
+    if (!p && h > 23) h = 23;
+    return `${String(h).padStart(2, '0')}:${m}`;
+  }
+  const parts = trimmed.split(/[:.]/);
+  if (parts.length >= 2) {
+    let hours = parseInt(parts[0], 10);
+    const mins = parts[1].slice(0, 2).padStart(2, '0');
+    if (!isNaN(hours)) {
+      if (trimmed.includes('PM') && hours < 12) hours += 12;
+      if (trimmed.includes('AM') && hours === 12) hours = 0;
+      if (hours > 23) hours = 23;
+      return `${String(hours).padStart(2, '0')}:${mins}`;
+    }
+  }
+  return trimmed;
+};
+
 // Helper: Calculate next SL number for a given month, year, and specific user
 const getNextSequenceNumber = async (month, year, userId = null) => {
   const query = { month, year };
@@ -256,7 +284,7 @@ export const createRecord = async (req, res, next) => {
       patientId: stringPatientId,
       patientName: patientName.trim(),
       date: recordDate,
-      time: time.trim(),
+      time: normalizeTo24HourTime(time),
       remark: remark ? remark.trim() : '',
       month: recordMonth,
       year: recordYear,
@@ -324,7 +352,7 @@ export const updateRecord = async (req, res, next) => {
     }
 
     if (time !== undefined) {
-      record.time = time.trim();
+      record.time = normalizeTo24HourTime(time);
     }
 
     if (remark !== undefined) {

@@ -45,7 +45,7 @@ Analyze this hospital bill/receipt image carefully and extract the following fie
   "patientId": "Strictly the last 6 digits of the Lab ID excluding the first 4 prefix digits (e.g. 260459)",
   "patientName": "The patient name in uppercase, removing any trailing (P-XXXXX) ID numbers or Age/Sex",
   "date": "Date formatted as YYYY-MM-DD (e.g. 2026-08-23)",
-  "time": "Time formatted as HH.MMAM/PM (e.g. 01.32PM or 08.46AM)",
+  "time": "Time formatted in 24-hour format HH:MM (e.g. 13:32 or 08:46)",
   "remark": "The main investigation test name (e.g. X-Ray-KUB Region or X-Ray-Chest P/A View)"
 }
 Return ONLY pure JSON without markdown code fences or other text.`;
@@ -72,7 +72,7 @@ Return ONLY pure JSON without markdown code fences or other text.`;
           patientId: patientId,
           patientName: (parsedJson.patientName || '').toUpperCase(),
           date: parsedJson.date || new Date().toISOString().split('T')[0],
-          time: parsedJson.time || '12.00PM',
+          time: parsedJson.time || '12:00',
           remark: parsedJson.remark || '100',
         },
         confidence: {

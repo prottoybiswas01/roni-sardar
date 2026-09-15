@@ -362,14 +362,12 @@ export const parseExtractedText = (rawText, overallConfidence = 70) => {
     dateConfidence = 'Medium';
   }
 
-  // Fallback current time if completely missing
+  // Fallback current time if completely missing (24-hour format)
   if (!time) {
     const now = new Date();
-    let hrs = now.getHours();
+    const hrs = String(now.getHours()).padStart(2, '0');
     const mins = String(now.getMinutes()).padStart(2, '0');
-    const period = hrs >= 12 ? 'PM' : 'AM';
-    hrs = hrs % 12 || 12;
-    time = `${String(hrs).padStart(2, '0')}.${mins}${period}`;
+    time = `${hrs}:${mins}`;
     timeConfidence = 'Low';
   }
 

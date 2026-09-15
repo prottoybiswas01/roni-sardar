@@ -84,32 +84,36 @@ export const formatTimeDisplay = (timeStr) => {
 };
 
 /**
- * Format 24h / 12h time into clean 12-hour Hospital format e.g. "07.31PM" or "12.35AM"
+ * Format 24h / 12h time into clean 24-hour International format e.g. "19:31" or "08:46"
  */
 export const formatHospitalTime = (timeStr) => {
   if (!timeStr) return '';
-  const trimmed = timeStr.trim().toUpperCase();
+  const trimmed = String(timeStr).trim().toUpperCase();
 
-  // If already formatted like 19.31PM, 07:31 PM, or 07.31PM, convert hours to 12-hr
-  const ampmMatch = trimmed.match(/^(\d{1,2})[:.](\d{2})\s*(AM|PM)?$/i);
-  if (ampmMatch) {
-    let h = parseInt(ampmMatch[1], 10);
-    const m = ampmMatch[2];
-    const p = ampmMatch[3] ? ampmMatch[3].toUpperCase() : (h >= 12 ? 'PM' : 'AM');
-    if (h > 12) h = h % 12 || 12;
-    if (h === 0) h = 12;
-    return `${String(h).padStart(2, '0')}.${m}${p}`;
+  // Match 12-hour or 24-hour time with optional seconds and AM/PM
+  const match = trimmed.match(/^(\d{1,2})[:.](\d{2})(?::\d{2})?\s*(AM|PM)?$/i);
+  if (match) {
+    let h = parseInt(match[1], 10);
+    const m = match[2];
+    const p = match[3] ? match[3].toUpperCase() : null;
+
+    if (p === 'PM' && h < 12) h += 12;
+    if (p === 'AM' && h === 12) h = 0;
+    if (!p && h > 23) h = 23;
+
+    return `${String(h).padStart(2, '0')}:${m}`;
   }
 
-  // Parse 24-hr format (HH:MM or HH.MM)
+  // Fallback for split by : or .
   const parts = trimmed.split(/[:.]/);
   if (parts.length >= 2) {
     let hours = parseInt(parts[0], 10);
     const mins = parts[1].slice(0, 2).padStart(2, '0');
     if (!isNaN(hours)) {
-      const period = hours >= 12 ? 'PM' : 'AM';
-      hours = hours % 12 || 12; // convert 19 -> 07, 0 -> 12
-      return `${String(hours).padStart(2, '0')}.${mins}${period}`;
+      if (trimmed.includes('PM') && hours < 12) hours += 12;
+      if (trimmed.includes('AM') && hours === 12) hours = 0;
+      if (hours > 23) hours = 23;
+      return `${String(hours).padStart(2, '0')}:${mins}`;
     }
   }
 
@@ -183,13 +187,11 @@ export const sortRecordsChronologically = (records = []) => {
 };
 
 /**
- * Get current time formatted strictly in 12-hour hospital format (e.g. 07.35PM)
+ * Get current time formatted strictly in 24-hour international format (e.g. 19:35 or 08:30)
  */
 export const getCurrentHospitalTime = () => {
   const now = new Date();
-  let hours = now.getHours();
+  const hours = String(now.getHours()).padStart(2, '0');
   const mins = String(now.getMinutes()).padStart(2, '0');
-  const period = hours >= 12 ? 'PM' : 'AM';
-  hours = hours % 12 || 12;
-  return `${String(hours).padStart(2, '0')}.${mins}${period}`;
+  return `${hours}:${mins}`;
 };

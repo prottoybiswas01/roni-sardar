@@ -170,7 +170,7 @@ def sanitize_and_extract_patient_id(raw_id_str):
     return digits_only
 
 def format_hospital_time(time_str):
-    """Format time string to HH.MM AM/PM standard format (e.g. 02.00PM)."""
+    """Format time string to 24-hour HH:MM standard international format (e.g. 14:00, 08:46)."""
     if not time_str:
         return ''
 
@@ -186,22 +186,15 @@ def format_hospital_time(time_str):
     mins = m.group(2)
     meridiem = m.group(3)
 
-    if not meridiem:
-        if hrs >= 12:
-            meridiem = 'PM'
-            if hrs > 12:
-                hrs -= 12
-        else:
-            meridiem = 'AM'
-            if hrs == 0:
-                hrs = 12
-    else:
-        if hrs == 0:
-            hrs = 12
-        elif hrs > 12:
-            hrs -= 12
+    if meridiem:
+        if meridiem == 'PM' and hrs < 12:
+            hrs += 12
+        elif meridiem == 'AM' and hrs == 12:
+            hrs = 0
+    elif hrs > 23:
+        hrs = 23
 
-    return f"{hrs:02d}.{mins}{meridiem}"
+    return f"{hrs:02d}:{mins}"
 
 def parse_extracted_text(raw_text, overall_confidence=85):
     """Extract structured hospital fields from raw OCR text."""
@@ -336,9 +329,7 @@ def parse_extracted_text(raw_text, overall_confidence=85):
         now = datetime.now()
         hrs = now.hour
         mins = f"{now.minute:02d}"
-        period = 'PM' if hrs >= 12 else 'AM'
-        hrs_12 = hrs % 12 or 12
-        time = f"{hrs_12:02d}.{mins}{period}"
+        time = f"{hrs:02d}:{mins}"
         time_confidence = 'Low'
 
     # 4. Remark / Investigation Test Detection
