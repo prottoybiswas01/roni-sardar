@@ -152,6 +152,7 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
       const res = await recordsApi.getRecords({
         month: selectedMonth,
         year: selectedYear,
+        ...(isSuperAdmin && selectedUserId ? { userId: selectedUserId } : {}),
         limit: 1000,
       });
 
@@ -182,6 +183,7 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
       const res = await recordsApi.getRecords({
         month: selectedMonth,
         year: selectedYear,
+        ...(isSuperAdmin && selectedUserId ? { userId: selectedUserId } : {}),
         limit: 1000,
       });
 

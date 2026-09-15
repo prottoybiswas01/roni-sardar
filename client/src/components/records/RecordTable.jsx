@@ -29,10 +29,13 @@ export const RecordTable = ({
 
   const isRecordOwner = (record) => {
     if (!user) return false;
-    if (user.role === 'superadmin' || user.role === 'admin') return true;
+    const currentUserId = String(user._id || user.id || '');
+    if (!currentUserId) return false;
     if (!record.createdBy) return true;
-    const creatorId = typeof record.createdBy === 'object' ? record.createdBy._id : record.createdBy;
-    return String(creatorId) === String(user._id || user.id);
+    const creatorId = typeof record.createdBy === 'object'
+      ? String(record.createdBy._id || record.createdBy.id || '')
+      : String(record.createdBy);
+    return creatorId === currentUserId;
   };
 
   if (isLoading) {

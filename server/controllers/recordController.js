@@ -294,17 +294,15 @@ export const updateRecord = async (req, res, next) => {
       });
     }
 
-    // Ownership check: ONLY the user who created/entered the record (or Superadmin/Admin) can edit it
-    if (
-      record.createdBy &&
-      req.user &&
-      req.user.role !== 'superadmin' &&
-      req.user.role !== 'admin' &&
-      String(record.createdBy._id || record.createdBy) !== String(req.user._id)
-    ) {
+    // Ownership check: ONLY the user who created/entered the record can edit it
+    // Admin / Superadmin CANNOT edit records created by other users (View and export only)
+    const recordCreatorId = record.createdBy ? String(record.createdBy._id || record.createdBy) : null;
+    const currentUserId = req.user ? String(req.user._id) : null;
+
+    if (recordCreatorId && currentUserId && recordCreatorId !== currentUserId) {
       return res.status(403).json({
         success: false,
-        message: 'অনুমতি নেই: শুধুমাত্র যে ইউজার রেকর্ডটি তৈরি করেছেন, তিনিই এটি এডিট করতে পারবেন। (Only the record creator or administrator can edit this record)',
+        message: 'অনুমতি নেই: শুধুমাত্র যে ইউজার রেকর্ডটি তৈরি করেছেন, তিনিই এটি এডিট করতে পারবেন। অ্যাডমিন শুধুমাত্র ভিউ এবং এক্সপোর্ট করতে পারবেন। (Only the record creator can edit this record)',
       });
     }
 
@@ -412,17 +410,15 @@ export const deleteRecord = async (req, res, next) => {
       });
     }
 
-    // Ownership check: ONLY the user who created/entered the record (or Superadmin/Admin) can delete it
-    if (
-      record.createdBy &&
-      req.user &&
-      req.user.role !== 'superadmin' &&
-      req.user.role !== 'admin' &&
-      String(record.createdBy._id || record.createdBy) !== String(req.user._id)
-    ) {
+    // Ownership check: ONLY the user who created/entered the record can delete it
+    // Admin / Superadmin CANNOT delete records created by other users
+    const recordCreatorId = record.createdBy ? String(record.createdBy._id || record.createdBy) : null;
+    const currentUserId = req.user ? String(req.user._id) : null;
+
+    if (recordCreatorId && currentUserId && recordCreatorId !== currentUserId) {
       return res.status(403).json({
         success: false,
-        message: 'অনুমতি নেই: শুধুমাত্র যে ইউজার রেকর্ডটি তৈরি করেছেন, তিনিই এটি ডিলিট করতে পারবেন। (Only the record creator or administrator can delete this record)',
+        message: 'অনুমতি নেই: শুধুমাত্র যে ইউজার রেকর্ডটি তৈরি করেছেন, তিনিই এটি ডিলিট করতে পারবেন। অ্যাডমিন কারো রেকর্ড ডিলিট করতে পারবেন না। (Only the record creator can delete this record)',
       });
     }
 
