@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../common/Modal';
+import TimePicker24 from '../common/TimePicker24';
 import { sanitizeAndExtractPatientId } from '../../services/ocrService';
 import {
   Sparkles,
@@ -180,23 +181,18 @@ export const OCRReviewModal = ({
             />
           </div>
 
-          {/* Time */}
+          {/* Time (24-Hour) */}
           <div className="space-y-1.5 sm:col-span-1">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-brand-600" />
-                Time
+                Time (24-Hour)
               </label>
               {getConfidenceBadge(ocrData.confidence?.time)}
             </div>
-            <input
-              type="text"
-              name="time"
+            <TimePicker24
               value={formData.time}
-              onChange={handleChange}
-              placeholder="e.g. 14:30 or 02:30 PM"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus-ring"
-              required
+              onChange={(newTime) => setFormData((prev) => ({ ...prev, time: newTime }))}
             />
           </div>
 

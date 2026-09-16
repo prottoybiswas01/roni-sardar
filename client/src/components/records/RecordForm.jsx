@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { formatDateForInput, getCurrentHospitalTime, formatHospitalTime } from '../../utils/dateUtils';
 import { sanitizeAndExtractPatientId } from '../../services/ocrService';
 import { DuplicateWarning } from './DuplicateWarning';
+import TimePicker24 from '../common/TimePicker24';
 import {
   Save,
   RotateCcw,
@@ -346,54 +347,39 @@ export const RecordForm = ({
           )}
         </div>
 
-        {/* Time with Clock Picker & AM/PM Controls */}
+        {/* Time (24-Hour International) */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-brand-600" />
               Time (24-Hour) <span className="text-rose-500">*</span>
             </label>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono text-xs font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded border border-brand-200">
+                {formData.time || '--:--'}
+              </span>
               <button
                 type="button"
                 onClick={() => {
-                  setFormData((prev) => ({ ...prev, time: getCurrentHospitalTime() }));
+                  const nowTime = getCurrentHospitalTime();
+                  setFormData((prev) => ({ ...prev, time: nowTime }));
+                  if (errors.time) setErrors((prev) => ({ ...prev, time: null }));
                 }}
-                className="text-[10px] text-brand-700 hover:text-brand-800 bg-brand-50 hover:bg-brand-100 px-2 py-0.5 rounded font-medium transition-colors"
+                className="text-[10px] text-brand-700 hover:text-brand-800 bg-brand-50 hover:bg-brand-100 px-2 py-0.5 rounded font-medium transition-colors border border-brand-200"
                 title="Set current 24-hour time"
               >
                 Now
               </button>
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <input
-              type="text"
-              name="time"
-              value={formData.time}
-              onChange={handleChange}
-              onBlur={() => {
-                if (formData.time) {
-                  setFormData((prev) => ({ ...prev, time: formatHospitalTime(prev.time) }));
-                }
-              }}
-              placeholder="e.g. 14:30 or 08:45"
-              className={`w-full rounded-lg border font-mono px-3 py-2 text-sm text-slate-900 focus-ring ${
-                errors.time ? 'border-rose-300 bg-rose-50/40' : 'border-slate-300'
-              }`}
-            />
-            {/* Clock wheel trigger */}
-            <div className="relative" title="Pick from Clock">
-              <input
-                type="time"
-                onChange={(e) => {
-                  if (!e.target.value) return;
-                  setFormData((prev) => ({ ...prev, time: e.target.value }));
-                }}
-                className="w-9 h-9 p-1.5 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer text-xs"
-              />
-            </div>
-          </div>
+          <TimePicker24
+            value={formData.time}
+            onChange={(newTime) => {
+              setFormData((prev) => ({ ...prev, time: newTime }));
+              if (errors.time) setErrors((prev) => ({ ...prev, time: null }));
+            }}
+            error={errors.time}
+          />
           {errors.time && (
             <p className="text-[11px] text-rose-600 font-medium">{errors.time}</p>
           )}
