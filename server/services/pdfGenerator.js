@@ -32,6 +32,50 @@ const parseTimeToMinutes = (timeStr) => {
 };
 
 /**
+ * Formats time for official hospital reports (Excel, PDF, tables) matching
+ * Ad-din Akij Medical College Hospital "One Call" format:
+ * - 00:xx (midnight duty) -> 12.xxAM (e.g., 00:17 -> 12.17AM, 00:35 -> 12.35AM)
+ * - 01:xx to 11:xx (morning) -> HH.MMAM (e.g., 07:20 -> 07.20AM)
+ * - 12:xx (noon) -> 12.MMPM (e.g., 12:30 -> 12.30PM)
+ * - 13:xx to 23:xx (afternoon/evening/night) -> HH.MMPM (e.g., 20:50 -> 20.50PM, 23:59 -> 23.59PM)
+ */
+export const formatHospitalTimeReport = (timeStr) => {
+  if (!timeStr) return '';
+  const trimmed = String(timeStr).trim().toUpperCase();
+
+  // 1. Check if already has AM or PM
+  const matchWithPeriod = trimmed.match(/^(\d{1,2})[:.](\d{2})(?::\d{2})?\s*(AM|PM)$/i);
+  if (matchWithPeriod) {
+    let h = parseInt(matchWithPeriod[1], 10);
+    const m = matchWithPeriod[2];
+    const p = matchWithPeriod[3].toUpperCase();
+    if (h === 0 && p === 'AM') {
+      h = 12;
+    }
+    return `${String(h).padStart(2, '0')}.${m}${p}`;
+  }
+
+  // 2. Parse 24-hour time HH:mm
+  const match24 = trimmed.match(/^(\d{1,2})[:.](\d{2})(?::\d{2})?$/);
+  if (match24) {
+    let h = parseInt(match24[1], 10);
+    const m = match24[2];
+
+    if (h === 0) {
+      return `12.${m}AM`;
+    } else if (h < 12) {
+      return `${String(h).padStart(2, '0')}.${m}AM`;
+    } else if (h === 12) {
+      return `12.${m}PM`;
+    } else {
+      return `${String(h).padStart(2, '0')}.${m}PM`;
+    }
+  }
+
+  return trimmed;
+};
+
+/**
  * Sorts records strictly in chronological order:
  * 1. Date ascending (1st of month to end of month)
  * 2. Time ascending (00:00 to 23:59)
@@ -195,7 +239,7 @@ export const generateMonthlyRecordsPDF = ({
           const yr = String(d.getFullYear()).slice(-2);
           dateStr = `${day}.${mo}.${yr}`;
         }
-        const timeStr = r.time || '';
+        const timeStr = formatHospitalTimeReport(r.time);
         const remarkStr = String(r.remark || '100');
 
         doc.fillColor('#000000').fontSize(7.5).font('Helvetica');

@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { MONTHS, sortRecordsChronologically } from '../utils/dateUtils';
+import { MONTHS, sortRecordsChronologically, formatHospitalTimeReport } from '../utils/dateUtils';
 
 /**
  * Generate and download a formatted Excel (.xlsx) report matching Ad-din Akij Medical College Hospital format
@@ -125,7 +125,7 @@ export const exportMonthlyReportToExcel = async ({
       }
     }
 
-    const timeFormatted = String(rec.time || '');
+    const timeFormatted = formatHospitalTimeReport(rec.time);
     const remark = String(rec.remark || '100');
 
     const row = worksheet.getRow(currentRow);

@@ -8,7 +8,7 @@ import { exportMonthlyReportToExcel } from '../services/excelService';
 import { exportMonthlyReportToPDF, printMonthlyReportPDF } from '../services/pdfService';
 import { ReportHeader } from '../components/reports/ReportHeader';
 import { MonthYearPicker } from '../components/layout/MonthYearPicker';
-import { formatDateDotShort, formatHospitalTime } from '../utils/dateUtils';
+import { formatDateDotShort, formatHospitalTimeReport } from '../utils/dateUtils';
 import { formatSL } from '../utils/formatters';
 import { TableSkeleton } from '../components/common/Skeleton';
 import { EmptyState } from '../components/common/EmptyState';
@@ -317,7 +317,7 @@ export const MonthlyReportPage = ({ onAddNew }) => {
 
                         {/* Time */}
                         <td className="py-2 px-4 text-slate-700 font-mono font-medium print:text-black">
-                          {formatHospitalTime(rec.time)}
+                          {formatHospitalTimeReport(rec.time)}
                         </td>
 
                         {/* Remark */}

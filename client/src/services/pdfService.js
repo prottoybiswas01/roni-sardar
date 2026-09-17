@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { formatDateDotShort, formatHospitalTime, MONTHS, sortRecordsChronologically } from '../utils/dateUtils';
+import { formatDateDotShort, formatHospitalTimeReport, MONTHS, sortRecordsChronologically } from '../utils/dateUtils';
 import { formatSL } from '../utils/formatters';
 
 /**
@@ -77,7 +77,7 @@ export const createMonthlyReportPDFDoc = ({
     const idVal = String(rec.patientId || '');
     const nameVal = String(rec.patientName || 'PATIENT').toUpperCase();
     const dateVal = formatDateDotShort(rec.date);
-    const timeVal = formatHospitalTime(rec.time);
+    const timeVal = formatHospitalTimeReport(rec.time);
     const remarkVal = String(rec.remark || '100');
 
     return [slVal, idVal, nameVal, dateVal, timeVal, remarkVal];

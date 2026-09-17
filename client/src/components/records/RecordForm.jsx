@@ -3,7 +3,7 @@ import { recordsApi } from '../../services/recordsApi';
 import { useToast } from '../../context/ToastContext';
 import { useSettings } from '../../context/SettingsContext';
 import { useAuth } from '../../context/AuthContext';
-import { formatDateForInput, getCurrentHospitalTime, formatHospitalTime } from '../../utils/dateUtils';
+import { formatDateForInput, getCurrentHospitalTime, formatHospitalTime, formatHospitalTimeReport } from '../../utils/dateUtils';
 import { sanitizeAndExtractPatientId } from '../../services/ocrService';
 import { DuplicateWarning } from './DuplicateWarning';
 import TimePicker24 from '../common/TimePicker24';
@@ -355,8 +355,13 @@ export const RecordForm = ({
               Time (24-Hour) <span className="text-rose-500">*</span>
             </label>
             <div className="flex items-center gap-1.5">
-              <span className="font-mono text-xs font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded border border-brand-200">
-                {formData.time || '--:--'}
+              <span className="font-mono text-xs font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded border border-brand-200 flex items-center gap-1.5" title="24-Hour Time & Hospital Format">
+                <span>{formData.time || '--:--'}</span>
+                {formData.time && (
+                  <span className="text-[10.5px] font-extrabold text-emerald-700 bg-emerald-100/80 px-1 rounded">
+                    {formatHospitalTimeReport(formData.time)}
+                  </span>
+                )}
               </span>
               <button
                 type="button"

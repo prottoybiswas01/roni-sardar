@@ -1,5 +1,5 @@
 import React from 'react';
-import { formatDateDotShort, formatHospitalTime } from '../../utils/dateUtils';
+import { formatDateDotShort, formatHospitalTimeReport } from '../../utils/dateUtils';
 import { formatSL } from '../../utils/formatters';
 import { TableSkeleton } from '../common/Skeleton';
 import { EmptyState } from '../common/EmptyState';
@@ -122,7 +122,7 @@ export const RecordTable = ({
 
                     {/* Time */}
                     <td className="py-3 px-4 text-xs font-mono font-medium text-slate-800">
-                      {formatHospitalTime(record.time)}
+                      {formatHospitalTimeReport(record.time)}
                     </td>
 
                     {/* Remark */}
@@ -232,7 +232,7 @@ export const RecordTable = ({
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="font-mono font-medium">{formatHospitalTime(record.time)}</span>
+                  <span className="font-mono font-medium">{formatHospitalTimeReport(record.time)}</span>
                 </div>
               </div>
 

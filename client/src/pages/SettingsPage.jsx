@@ -9,7 +9,7 @@ import { biometricService } from '../services/biometricService';
 import { exportMonthlyReportToExcel } from '../services/excelService';
 import { exportMonthlyReportToPDF } from '../services/pdfService';
 import { Modal } from '../components/common/Modal';
-import { formatDateDotShort, formatHospitalTime, MONTHS, getAvailableYears } from '../utils/dateUtils';
+import { formatDateDotShort, formatHospitalTimeReport, MONTHS, getAvailableYears } from '../utils/dateUtils';
 import { formatSL } from '../utils/formatters';
 import {
   Settings,
@@ -1546,7 +1546,7 @@ export const SettingsPage = ({ initialTab = 'general' }) => {
                         <td className="py-2 px-3 font-mono font-bold text-brand-700">{rec.patientId}</td>
                         <td className="py-2 px-3 font-medium text-slate-900">{rec.patientName}</td>
                         <td className="py-2 px-3 text-slate-600">{formatDateDotShort(rec.date)}</td>
-                        <td className="py-2 px-3 text-slate-600 font-mono">{formatHospitalTime(rec.time)}</td>
+                        <td className="py-2 px-3 text-slate-600 font-mono">{formatHospitalTimeReport(rec.time)}</td>
                         <td className="py-2 px-3 text-slate-700 font-bold">{rec.remark || '100'}</td>
                       </tr>
                     ))}

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Modal } from '../common/Modal';
-import { formatDateDotShort, formatHospitalTime } from '../../utils/dateUtils';
+import { formatDateDotShort, formatHospitalTimeReport } from '../../utils/dateUtils';
 import { formatSL } from '../../utils/formatters';
 import {
   AlertTriangle,
@@ -84,7 +84,7 @@ export const DeleteRecordModal = ({
               <div className="flex items-center gap-1.5 bg-white/80 p-2 rounded-lg border border-rose-100/60">
                 <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                 <span className="font-mono font-semibold text-slate-800">
-                  {formatHospitalTime(record.time)}
+                  {formatHospitalTimeReport(record.time)}
                 </span>
               </div>
             </div>

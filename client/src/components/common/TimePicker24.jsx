@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Clock, Check, X, Sparkles } from 'lucide-react';
-import { formatHospitalTime, getCurrentHospitalTime } from '../../utils/dateUtils';
+import { formatHospitalTime, formatHospitalTimeReport, getCurrentHospitalTime } from '../../utils/dateUtils';
 
 // 24 Hours: '00' to '23'
 const HOURS_24 = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
@@ -165,12 +165,12 @@ export default function TimePicker24({
           <div className="flex items-center justify-between border-b border-slate-100 pb-2">
             <div>
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                24-Hour International Time
+                24-Hour Time & Hospital Format
               </div>
-              <div className="font-mono text-lg font-extrabold text-brand-600 tracking-tight">
-                {currHour}:{currMin}
-                <span className="text-[10px] font-normal text-slate-400 ml-1.5 font-sans">
-                  (24h format)
+              <div className="font-mono text-lg font-extrabold text-brand-600 tracking-tight flex items-baseline gap-2">
+                <span>{currHour}:{currMin}</span>
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                  {formatHospitalTimeReport(`${currHour}:${currMin}`)}
                 </span>
               </div>
             </div>
