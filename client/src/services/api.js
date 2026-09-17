@@ -12,6 +12,15 @@ const getBaseUrl = () => {
 
 const API_BASE_URL = getBaseUrl();
 
+// Non-blocking background warm-up ping for cloud container wake-up
+if (typeof window !== 'undefined') {
+  try {
+    fetch(`${API_BASE_URL}/health`, { method: 'GET', cache: 'no-store' }).catch(() => {});
+  } catch {
+    // Ignore background warm-up error
+  }
+}
+
 /**
  * Core API client with token injection, auto-retry on 502/503/504 & uniform error handling
  */

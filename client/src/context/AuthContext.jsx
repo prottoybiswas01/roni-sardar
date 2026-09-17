@@ -12,8 +12,27 @@ export const AuthProvider = ({ children }) => {
       return null;
     }
   });
-  const [token, setToken] = useState(() => localStorage.getItem('token') || null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [token, setToken] = useState(() => {
+    try {
+      return localStorage.getItem('token') || null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Fast Instant-Load: If user session is already cached locally, or if user has no token at all,
+  // do NOT block initial render with a loading screen. Load the app in 0ms!
+  const [isLoading, setIsLoading] = useState(() => {
+    try {
+      const savedToken = localStorage.getItem('token');
+      const savedUser = localStorage.getItem('user');
+      if (savedToken && savedUser) return false; // Already logged in, instant entry!
+      if (!savedToken) return false; // Not logged in, instant login screen!
+    } catch {
+      // Fallback
+    }
+    return true;
+  });
 
   useEffect(() => {
     const handleSessionExpired = () => {
@@ -26,22 +45,46 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
+    let isMounted = true;
+
+    // Safety timeout: Never keep user waiting on loading screen for more than 2.5 seconds
+    const safetyTimer = setTimeout(() => {
+      if (isMounted) setIsLoading(false);
+    }, 2500);
+
     const checkAuthStatus = async () => {
       if (token) {
         try {
           const res = await authApi.getMe();
-          if (res.success && res.data) {
+          if (isMounted && res.success && res.data) {
             setUser(res.data);
             localStorage.setItem('user', JSON.stringify(res.data));
           }
         } catch (err) {
-          logout();
+          // Only logout if token was explicitly rejected / unauthorized (401)
+          // Do NOT logout on server wake-up (502/503), timeout, or temporary network blips
+          if (
+            isMounted &&
+            (err?.status === 401 ||
+              err?.message?.includes('401') ||
+              err?.message?.includes('token') ||
+              err?.message?.includes('authorized'))
+          ) {
+            logout();
+          }
         }
       }
-      setIsLoading(false);
+      if (isMounted) {
+        setIsLoading(false);
+      }
     };
 
     checkAuthStatus();
+
+    return () => {
+      isMounted = false;
+      clearTimeout(safetyTimer);
+    };
   }, [token]);
 
   const login = async (email, password) => {
