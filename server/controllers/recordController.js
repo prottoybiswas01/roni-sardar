@@ -85,6 +85,7 @@ export const getRecords = async (req, res, next) => {
       year,
       search,
       date,
+      isVerified,
       page = 1,
       limit = 50,
       sortBy = 'sl',
@@ -125,6 +126,11 @@ export const getRecords = async (req, res, next) => {
       query.date = { $gte: startOfDay, $lte: endOfDay };
     }
 
+    // Re-check / Verification status filter
+    if (isVerified !== undefined && isVerified !== '' && isVerified !== 'all') {
+      query.isVerified = isVerified === 'true' || isVerified === true;
+    }
+
     if (search && search.trim() !== '') {
       const searchTerm = search.trim();
       query.$or = [
@@ -149,7 +155,7 @@ export const getRecords = async (req, res, next) => {
     // High performance query with .lean() directly returning raw JSON objects
     const [records, total] = await Promise.all([
       Record.find(query)
-        .select('sl patientId patientName date time remark month year createdBy createdAt')
+        .select('sl patientId patientName date time remark month year createdBy createdAt isVerified verifiedAt')
         .sort(sortOptions)
         .skip(skip)
         .limit(limitNum)
@@ -405,11 +411,46 @@ export const updateRecord = async (req, res, next) => {
       record.year = newYear;
     }
 
+    if (req.body.isVerified !== undefined) {
+      record.isVerified = Boolean(req.body.isVerified);
+      record.verifiedAt = record.isVerified ? new Date() : null;
+    }
+
     await record.save();
 
     res.status(200).json({
       success: true,
       message: 'Record updated successfully',
+      data: record,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Toggle or update record confirmation / verification status (Re-Check & Confirm)
+// @route   PATCH /api/records/:id/verify
+// @access  Private
+export const toggleRecordVerification = async (req, res, next) => {
+  try {
+    const record = await Record.findById(req.params.id);
+
+    if (!record) {
+      return res.status(404).json({
+        success: false,
+        message: 'Record not found',
+      });
+    }
+
+    const newStatus = req.body.isVerified !== undefined ? Boolean(req.body.isVerified) : !record.isVerified;
+    record.isVerified = newStatus;
+    record.verifiedAt = newStatus ? new Date() : null;
+
+    await record.save();
+
+    res.status(200).json({
+      success: true,
+      message: newStatus ? 'রেকর্ডটি সফলভাবে কনফার্ম ও সবুজ চিহ্নিত করা হয়েছে' : 'কনফার্মেশন বাতিল করা হয়েছে',
       data: record,
     });
   } catch (error) {

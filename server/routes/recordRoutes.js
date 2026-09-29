@@ -10,6 +10,7 @@ import {
   getNextSl,
   getMonthlyCounts,
   processOCRImage,
+  toggleRecordVerification,
 } from '../controllers/recordController.js';
 import { protect } from '../middleware/auth.js';
 
@@ -27,6 +28,7 @@ router.get('/', getRecords);
 router.get('/:id', getRecordById);
 router.post('/', createRecord);
 router.put('/:id', updateRecord);
+router.patch('/:id/verify', toggleRecordVerification);
 router.delete('/:id', deleteRecord);
 
 export default router;

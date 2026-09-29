@@ -51,6 +51,16 @@ const recordSchema = new mongoose.Schema(
       ref: 'User',
       required: false,
     },
+    // Re-check / Confirmation status (User audit workflow)
+    isVerified: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    verifiedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

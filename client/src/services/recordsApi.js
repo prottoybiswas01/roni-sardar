@@ -36,6 +36,13 @@ export const recordsApi = {
     });
   },
 
+  toggleVerify: async (id, isVerified = undefined) => {
+    return await apiClient(`/records/${id}/verify`, {
+      method: 'PATCH',
+      body: JSON.stringify(isVerified !== undefined ? { isVerified } : {}),
+    });
+  },
+
   checkDuplicate: async (patientId, date, excludeId = null) => {
     const query = new URLSearchParams({
       patientId: String(patientId).trim(),
