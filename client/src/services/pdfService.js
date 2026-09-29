@@ -83,112 +83,60 @@ export const createMonthlyReportPDFDoc = ({
     return [slVal, idVal, nameVal, dateVal, timeVal, remarkVal];
   });
 
-  // Smart Pagination Strategy:
-  // - If total records <= 47: Keep all on 1 page
-  // - If total records > 47: Page 1 gets 40 records, subsequent pages get 40 records each
-  const chunkTableData = (rows) => {
-    const total = rows.length;
-    if (total <= 47) {
-      return [rows];
-    }
-    const chunks = [];
-    const PAGE_1_SIZE = 40;
-    const SUBSEQUENT_PAGE_SIZE = 40;
-
-    chunks.push(rows.slice(0, PAGE_1_SIZE));
-    let idx = PAGE_1_SIZE;
-    while (idx < total) {
-      chunks.push(rows.slice(idx, idx + SUBSEQUENT_PAGE_SIZE));
-      idx += SUBSEQUENT_PAGE_SIZE;
-    }
-    return chunks;
-  };
-
-  const pageChunks = chunkTableData(tableData);
-
-  // Common Table Configuration
-  const tableHead = [['SL', 'Patient ID', 'Patient Name', 'Date', 'Time', 'Remark (Tk)']];
-  const tableHeadStyles = {
-    textColor: [0, 0, 0],
-    fontStyle: 'bold',
-    fontSize: 8,
-    halign: 'left',
-    cellPadding: 1.1,
-    lineWidth: { top: 0.35, bottom: 0.35, left: 0.35, right: 0.35 },
-    lineColor: [0, 0, 0],
-  };
-  const tableBodyStyles = {
-    textColor: [0, 0, 0],
-    fontSize: 7.5,
-    cellPadding: 0.8,
-    lineWidth: { bottom: 0.15 },
-    lineColor: [210, 210, 210],
-  };
-  const tableFootStyles = {
-    textColor: [0, 0, 0],
-    fontStyle: 'bold',
-    fontSize: 8,
-    cellPadding: 1.1,
-    lineWidth: { top: 0.35, bottom: 0.35, left: 0.35, right: 0.35 },
-    lineColor: [0, 0, 0],
-  };
-  const tableColumnStyles = {
-    0: { halign: 'center', cellWidth: 10 }, // SL
-    1: { cellWidth: 26, fontStyle: 'bold' }, // Patient ID
-    2: { cellWidth: 68 }, // Patient Name
-    3: { cellWidth: 24, halign: 'center' }, // Date
-    4: { cellWidth: 24, halign: 'center' }, // Time
-    5: { cellWidth: 34, halign: 'right', fontStyle: 'bold' }, // Remark (Tk)
-  };
-
-  const grandTotalFoot = [
-    [
-      {
-        content: `TOTAL ENTRIES: ${sortedRecords.length}`,
-        colSpan: 5,
-        styles: { halign: 'left', fontStyle: 'bold', fontSize: 8 },
-      },
-      {
-        content: `Tk. ${totalAmount.toLocaleString()}`,
-        styles: { halign: 'right', fontStyle: 'bold', fontSize: 8 },
-      },
+  // 6. Render AutoTable with optimal space utilization
+  // Bottom margin 35mm reserves exact comfortable room for physical pen signing and signatures at 277mm
+  autoTable(doc, {
+    startY: 34.5,
+    head: [['SL', 'Patient ID', 'Patient Name', 'Date', 'Time', 'Remark (Tk)']],
+    body: tableData,
+    foot: [
+      [
+        {
+          content: `TOTAL ENTRIES: ${sortedRecords.length}`,
+          colSpan: 5,
+          styles: { halign: 'left', fontStyle: 'bold', fontSize: 8 },
+        },
+        {
+          content: `Tk. ${totalAmount.toLocaleString()}`,
+          styles: { halign: 'right', fontStyle: 'bold', fontSize: 8 },
+        },
+      ],
     ],
-  ];
-
-  // 6. Render AutoTable per Page Chunk
-  pageChunks.forEach((chunk, pageIndex) => {
-    if (pageIndex > 0) {
-      doc.addPage();
-    }
-    const isFirstPage = pageIndex === 0;
-    const isLastPage = pageIndex === pageChunks.length - 1;
-
-    autoTable(doc, {
-      startY: isFirstPage ? 34.5 : 18,
-      head: tableHead,
-      body: chunk,
-      foot: isLastPage ? grandTotalFoot : undefined,
-      showFoot: 'lastPage',
-      theme: 'plain',
-      headStyles: tableHeadStyles,
-      bodyStyles: tableBodyStyles,
-      footStyles: tableFootStyles,
-      columnStyles: tableColumnStyles,
-      margin: {
-        top: isFirstPage ? 34.5 : 18,
-        left: 12,
-        right: 12,
-        bottom: 28,
-      },
-      didDrawPage: (data) => {
-        // Draw solid closing bottom border for intermediate pages
-        if (!isLastPage && data.cursor) {
-          doc.setDrawColor(0, 0, 0);
-          doc.setLineWidth(0.35);
-          doc.line(12, data.cursor.y, pageWidth - 12, data.cursor.y);
-        }
-      },
-    });
+    showFoot: 'lastPage',
+    theme: 'plain',
+    headStyles: {
+      textColor: [0, 0, 0],
+      fontStyle: 'bold',
+      fontSize: 8,
+      halign: 'left',
+      cellPadding: 1.1,
+      lineWidth: { top: 0.35, bottom: 0.35, left: 0.35, right: 0.35 },
+      lineColor: [0, 0, 0],
+    },
+    bodyStyles: {
+      textColor: [0, 0, 0],
+      fontSize: 7.5,
+      cellPadding: 0.9,
+      lineWidth: { bottom: 0.15 },
+      lineColor: [210, 210, 210],
+    },
+    footStyles: {
+      textColor: [0, 0, 0],
+      fontStyle: 'bold',
+      fontSize: 8,
+      cellPadding: 1.1,
+      lineWidth: { top: 0.35, bottom: 0.35, left: 0.35, right: 0.35 },
+      lineColor: [0, 0, 0],
+    },
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 10 }, // SL
+      1: { cellWidth: 26, fontStyle: 'bold' }, // Patient ID
+      2: { cellWidth: 68 }, // Patient Name
+      3: { cellWidth: 24, halign: 'center' }, // Date
+      4: { cellWidth: 24, halign: 'center' }, // Time
+      5: { cellWidth: 34, halign: 'right', fontStyle: 'bold' }, // Remark (Tk)
+    },
+    margin: { top: 18, left: 12, right: 12, bottom: 35 },
   });
 
   // 7. Signature Blocks (Rendered on EVERY PAGE at the bottom)
