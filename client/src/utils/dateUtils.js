@@ -122,11 +122,11 @@ export const formatHospitalTime = (timeStr) => {
 
 /**
  * Formats time for official hospital reports (Excel, PDF, tables) matching
- * Ad-din Akij Medical College Hospital "One Call" format:
- * - 00:xx (midnight duty) -> 12.xxAM (e.g., 00:17 -> 12.17AM, 00:35 -> 12.35AM)
- * - 01:xx to 11:xx (morning) -> HH.MMAM (e.g., 07:20 -> 07.20AM)
- * - 12:xx (noon) -> 12.MMPM (e.g., 12:30 -> 12.30PM)
- * - 13:xx to 23:xx (afternoon/evening/night) -> HH.MMPM (e.g., 20:50 -> 20.50PM, 23:59 -> 23.59PM)
+ * Ad-din Akij Medical College Hospital format:
+ * Preserves the exact 24-hour hour number (00 to 23) and adds automatic AM/PM suffix:
+ * - 00:xx to 11:xx -> HH.MMAM (e.g., 00:42 -> 00.42AM, 07:20 -> 07.20AM)
+ * - 12:xx to 23:xx -> HH.MMPM (e.g., 12:30 -> 12.30PM, 20:50 -> 20.50PM)
+ * - Legacy 12.xxAM is normalized to 00.xxAM (midnight)
  */
 export const formatHospitalTimeReport = (timeStr) => {
   if (!timeStr) return '';
@@ -138,10 +138,14 @@ export const formatHospitalTimeReport = (timeStr) => {
     let h = parseInt(matchWithPeriod[1], 10);
     const m = matchWithPeriod[2];
     const p = matchWithPeriod[3].toUpperCase();
-    if (h === 0 && p === 'AM') {
-      h = 12;
+
+    // 12 AM represents midnight duty (00 hr)
+    if (h === 12 && p === 'AM') {
+      h = 0;
     }
-    return `${String(h).padStart(2, '0')}.${m}${p}`;
+
+    const period = h < 12 ? 'AM' : 'PM';
+    return `${String(h).padStart(2, '0')}.${m}${period}`;
   }
 
   // 2. Parse 24-hour time HH:mm
@@ -150,19 +154,8 @@ export const formatHospitalTimeReport = (timeStr) => {
     let h = parseInt(match24[1], 10);
     const m = match24[2];
 
-    if (h === 0) {
-      // Midnight 00:xx -> 12.xxAM (Hospital standard)
-      return `12.${m}AM`;
-    } else if (h < 12) {
-      // Morning 01:xx - 11:xx -> HH.MMAM (e.g. 07.20AM)
-      return `${String(h).padStart(2, '0')}.${m}AM`;
-    } else if (h === 12) {
-      // Midday 12:xx -> 12.MMPM
-      return `12.${m}PM`;
-    } else {
-      // Evening / Night 13:xx - 23:xx -> HH.MMPM (e.g. 20.50PM, 23.59PM)
-      return `${String(h).padStart(2, '0')}.${m}PM`;
-    }
+    const period = h < 12 ? 'AM' : 'PM';
+    return `${String(h).padStart(2, '0')}.${m}${period}`;
   }
 
   return trimmed;
