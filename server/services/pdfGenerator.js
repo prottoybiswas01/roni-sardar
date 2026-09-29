@@ -201,9 +201,9 @@ export const generateMonthlyRecordsPDF = ({
       // Bottom subheader divider line
       doc.moveTo(30, 96).lineTo(565, 96).lineWidth(0.8).strokeColor('#000000').stroke();
 
-      // Helper to draw signatures at the bottom of ANY page
+      // Helper to draw signatures at the bottom of ANY page (Safe height: 705pt, leaving generous margin on Letter and A4)
       const drawSignaturesOnPage = () => {
-        const sigY = 780;
+        const sigY = 705; // 705pt = 248.7mm. Leaves 87pt clearance on Letter (792pt) and 136pt on A4 (841.89pt)
         // Left Signature: Roni Sarder / Medical Technology
         doc.moveTo(50, sigY).lineTo(190, sigY).lineWidth(0.8).strokeColor('#000000').stroke();
         doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#000000').text('Roni Sarder', 50, sigY + 5, { width: 140, align: 'center', lineBreak: false });
@@ -231,8 +231,8 @@ export const generateMonthlyRecordsPDF = ({
       currentY += 15;
 
       sortedRecords.forEach((r, idx) => {
-        // Natural break when reaching signature buffer (~35pt above signature line at 780)
-        if (currentY + 13.5 > 745) {
+        // Natural break when reaching signature buffer (~40pt above signature line at 705pt for pen signing)
+        if (currentY + 13.5 > 665) {
           drawSignaturesOnPage();
           doc.addPage();
           currentY = 30;
@@ -264,7 +264,7 @@ export const generateMonthlyRecordsPDF = ({
       });
 
       // Total summary row at the end
-      if (currentY + 18 > 745) {
+      if (currentY + 18 > 665) {
         drawSignaturesOnPage();
         doc.addPage();
         currentY = 30;

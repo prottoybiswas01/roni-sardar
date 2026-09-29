@@ -136,15 +136,25 @@ export const createMonthlyReportPDFDoc = ({
       4: { cellWidth: 24, halign: 'center' }, // Time
       5: { cellWidth: 34, halign: 'right', fontStyle: 'bold' }, // Remark (Tk)
     },
-    margin: { top: 18, left: 12, right: 12, bottom: 35 },
+    // margin.bottom: 63mm ensures table stops at Y=234mm, leaving ~14mm pen-signing clearance above sigY=248mm
+    margin: { top: 16, left: 12, right: 12, bottom: 63 },
   });
 
-  // 7. Signature Blocks (Rendered on EVERY PAGE at the bottom)
+  // 7. Official Document Metadata (Explicit A4 declaration)
+  doc.setDocumentProperties({
+    title: `OverDuty_Report_${monthYearString.replace(/\s+/g, '_')}`,
+    subject: 'Over Duty Monthly Administrative Report - Standard A4',
+    author: hospitalName || 'Ad-din Akij Medical College Hospital',
+    keywords: 'OverDuty, Hospital, Report, A4',
+    creator: 'OverDuty Pro',
+  });
+
+  // 8. Signature Blocks (Rendered on EVERY PAGE at safe Y=248mm, 100% immune to Letter/A4 cut-off)
   const totalPages = doc.internal.getNumberOfPages();
+  const sigY = 248; // Safe height: 22mm above Letter bottom edge (279.4mm) & 40mm above A4 bottom edge (297mm)
+
   for (let p = 1; p <= totalPages; p++) {
     doc.setPage(p);
-
-    const sigY = pageHeight - 20;
 
     // Left Signature: Roni Sarder / Medical Technology
     doc.setDrawColor(0, 0, 0);
