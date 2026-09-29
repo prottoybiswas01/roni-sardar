@@ -22,6 +22,7 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 1 });
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDate, setFilterDate] = useState('');
+  const [verificationFilter, setVerificationFilter] = useState('all');
   const [selectedUserId, setSelectedUserId] = useState('me');
   const [userList, setUserList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -72,6 +73,7 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
         year: selectedYear,
         search: searchTerm,
         date: filterDate,
+        ...(verificationFilter !== 'all' ? { isVerified: verificationFilter === 'verified' } : {}),
         ...(isSuperAdmin && selectedUserId ? { userId: selectedUserId } : {}),
         page,
         limit: 50,
@@ -81,7 +83,7 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
         setRecords(res.data);
         setPagination(res.pagination);
         // Automatically sync current month's count in the selector if no sub-filters active
-        if (!searchTerm && !filterDate) {
+        if (!searchTerm && !filterDate && verificationFilter === 'all') {
           setMonthlyCounts((prev) => ({
             ...prev,
             [selectedMonth]: res.pagination.total,
@@ -94,17 +96,53 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedMonth, selectedYear, searchTerm, filterDate, selectedUserId, isSuperAdmin]);
+  }, [selectedMonth, selectedYear, searchTerm, filterDate, verificationFilter, selectedUserId, isSuperAdmin]);
 
   useEffect(() => {
     fetchRecords(1);
   }, [fetchRecords]);
 
-
   const handleClearFilters = () => {
     setSearchTerm('');
     setFilterDate('');
+    setVerificationFilter('all');
     setSelectedUserId('me');
+  };
+
+  const handleToggleVerify = async (record) => {
+    if (isPaused) {
+      toast.warning('আপনার অ্যাকাউন্টটি স্থগিত (Paused) থাকায় কোনো পরিবর্তন করা যাবে না।');
+      return;
+    }
+
+    const currentStatus = Boolean(record.isVerified);
+    const newStatus = !currentStatus;
+
+    // Optimistic UI update for instant visual feedback (<1ms)
+    setRecords((prev) =>
+      prev.map((r) =>
+        r._id === record._id
+          ? { ...r, isVerified: newStatus, verifiedAt: newStatus ? new Date() : null }
+          : r
+      )
+    );
+
+    try {
+      const res = await recordsApi.toggleVerify(record._id, newStatus);
+      if (res.success) {
+        if (newStatus) {
+          toast.success(`পেশেন্ট #${record.patientId} সফলভাবে ১০০% কনফার্ম ও সবুজ চিহ্নিত করা হয়েছে!`);
+        } else {
+          toast.info(`পেশেন্ট #${record.patientId} এর কনফার্মেশন বাতিল করা হয়েছে।`);
+        }
+      }
+    } catch (err) {
+      // Rollback on failure
+      setRecords((prev) =>
+        prev.map((r) => (r._id === record._id ? { ...r, isVerified: currentStatus } : r))
+      );
+      toast.error(err.message || 'ভেরিফিকেশন আপডেট ব্যর্থ হয়েছে');
+    }
   };
 
   const handleDeleteConfirm = async () => {
@@ -292,6 +330,8 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
         onYearChange={setSelectedYear}
         filterDate={filterDate}
         onDateChange={setFilterDate}
+        verificationFilter={verificationFilter}
+        onVerificationFilterChange={setVerificationFilter}
         onClearFilters={handleClearFilters}
         isSuperAdmin={isSuperAdmin}
         users={userList}
@@ -306,6 +346,7 @@ export const RecordsPage = ({ onOpenScanner, onOpenAddPage }) => {
         isLoading={isLoading}
         onEdit={(rec) => setEditingRecord(rec)}
         onDelete={(rec) => setDeletingRecord(rec)}
+        onToggleVerify={handleToggleVerify}
         pagination={pagination}
         onPageChange={(page) => fetchRecords(page)}
         onAddNew={onOpenAddPage}
