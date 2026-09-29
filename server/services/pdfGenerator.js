@@ -201,9 +201,40 @@ export const generateMonthlyRecordsPDF = ({
       // Bottom subheader divider line
       doc.moveTo(30, 96).lineTo(565, 96).lineWidth(0.8).strokeColor('#000000').stroke();
 
-      // --- 3. CLEAN HIGH-DENSITY TABLE (FITS 40-50 ROWS PER PAGE) ---
-      let startTableY = 104;
-      let currentY = startTableY;
+      // Helper to draw signatures at the bottom of ANY page
+      const drawSignaturesOnPage = () => {
+        const sigY = 780;
+        // Left Signature: Roni Sarder / Medical Technology
+        doc.moveTo(50, sigY).lineTo(190, sigY).lineWidth(0.8).strokeColor('#000000').stroke();
+        doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#000000').text('Roni Sarder', 50, sigY + 5, { width: 140, align: 'center', lineBreak: false });
+        doc.fontSize(7.5).font('Helvetica').fillColor('#333333').text('Medical Technology', 50, sigY + 16, { width: 140, align: 'center', lineBreak: false });
+
+        // Right Signature: Mizanur Rahman / Incharge
+        doc.moveTo(375, sigY).lineTo(515, sigY).lineWidth(0.8).strokeColor('#000000').stroke();
+        doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#000000').text('Mizanur Rahman', 375, sigY + 5, { width: 140, align: 'center', lineBreak: false });
+        doc.fontSize(7.5).font('Helvetica').fillColor('#333333').text('Incharge', 375, sigY + 16, { width: 140, align: 'center', lineBreak: false });
+      };
+
+      // Smart Pagination Strategy:
+      // - If total records <= 47: Keep all on 1 page
+      // - If total records > 47: Page 1 gets 40 records, subsequent pages get 40 records each
+      const chunkRecords = (records) => {
+        const total = records.length;
+        if (total <= 47) return [records];
+        const chunks = [];
+        const PAGE_1_SIZE = 40;
+        const SUBSEQUENT_PAGE_SIZE = 40;
+
+        chunks.push(records.slice(0, PAGE_1_SIZE));
+        let idx = PAGE_1_SIZE;
+        while (idx < total) {
+          chunks.push(records.slice(idx, idx + SUBSEQUENT_PAGE_SIZE));
+          idx += SUBSEQUENT_PAGE_SIZE;
+        }
+        return chunks;
+      };
+
+      const pageChunks = chunkRecords(sortedRecords);
 
       const drawTableHeader = (y) => {
         doc.rect(30, y, 535, 15).strokeColor('#000000').lineWidth(0.8).stroke();
@@ -216,63 +247,55 @@ export const generateMonthlyRecordsPDF = ({
         doc.text('Remark (Tk)', 465, y + 4, { width: 95, align: 'right', lineBreak: false });
       };
 
-      drawTableHeader(currentY);
-      currentY += 15;
-
-      sortedRecords.forEach((r, idx) => {
-        // Auto page break: allow up to 740pt height (~45-50 rows) before breaking
-        if (currentY > 740) {
+      // --- 3. RENDER TABLE PAGES ---
+      pageChunks.forEach((chunk, pageIndex) => {
+        if (pageIndex > 0) {
           doc.addPage();
-          currentY = 30;
-          drawTableHeader(currentY);
-          currentY += 15;
+        }
+        const isFirstPage = pageIndex === 0;
+        const isLastPage = pageIndex === pageChunks.length - 1;
+        let currentY = isFirstPage ? 104 : 30;
+
+        drawTableHeader(currentY);
+        currentY += 15;
+
+        chunk.forEach((r, idx) => {
+          let dateStr = '';
+          if (r.date) {
+            const d = new Date(r.date);
+            const day = String(d.getDate()).padStart(2, '0');
+            const mo = String(d.getMonth() + 1).padStart(2, '0');
+            const yr = String(d.getFullYear()).slice(-2);
+            dateStr = `${day}.${mo}.${yr}`;
+          }
+          const timeStr = formatHospitalTimeReport(r.time);
+          const remarkStr = String(r.remark || '100');
+
+          doc.fillColor('#000000').fontSize(7.5).font('Helvetica');
+          doc.text(String(r.sl || (isFirstPage ? idx + 1 : 40 + (pageIndex - 1) * 40 + idx + 1)), 34, currentY + 2.5, { width: 22, align: 'center', lineBreak: false });
+          doc.font('Helvetica-Bold').text(String(r.patientId || ''), 60, currentY + 2.5, { width: 80, lineBreak: false });
+          doc.font('Helvetica').text(String(r.patientName || 'PATIENT').substring(0, 32), 145, currentY + 2.5, { width: 180, lineBreak: false });
+          doc.text(dateStr, 330, currentY + 2.5, { width: 65, lineBreak: false });
+          doc.text(timeStr, 400, currentY + 2.5, { width: 55, lineBreak: false });
+          doc.font('Helvetica-Bold').text(remarkStr, 465, currentY + 2.5, { width: 95, align: 'right', lineBreak: false });
+
+          doc.moveTo(30, currentY + 12).lineTo(565, currentY + 12).lineWidth(0.3).strokeColor('#dddddd').stroke();
+          currentY += 12.5;
+        });
+
+        // Summary row or closing line
+        if (isLastPage) {
+          doc.rect(30, currentY + 2, 535, 15).strokeColor('#000000').lineWidth(0.8).stroke();
+          doc.fillColor('#000000').fontSize(8).font('Helvetica-Bold');
+          doc.text(`TOTAL ENTRIES: ${sortedRecords.length}`, 38, currentY + 5.5, { width: 200, lineBreak: false });
+          doc.text(`GRAND TOTAL: Tk. ${computedTotal.toLocaleString()}`, 300, currentY + 5.5, { width: 260, align: 'right', lineBreak: false });
+        } else {
+          doc.moveTo(30, currentY + 2).lineTo(565, currentY + 2).lineWidth(0.8).strokeColor('#000000').stroke();
         }
 
-        let dateStr = '';
-        if (r.date) {
-          const d = new Date(r.date);
-          const day = String(d.getDate()).padStart(2, '0');
-          const mo = String(d.getMonth() + 1).padStart(2, '0');
-          const yr = String(d.getFullYear()).slice(-2);
-          dateStr = `${day}.${mo}.${yr}`;
-        }
-        const timeStr = formatHospitalTimeReport(r.time);
-        const remarkStr = String(r.remark || '100');
-
-        doc.fillColor('#000000').fontSize(7.5).font('Helvetica');
-        doc.text(String(r.sl || idx + 1), 34, currentY + 2.5, { width: 22, align: 'center', lineBreak: false });
-        doc.font('Helvetica-Bold').text(String(r.patientId || ''), 60, currentY + 2.5, { width: 80, lineBreak: false });
-        doc.font('Helvetica').text(String(r.patientName || 'PATIENT').substring(0, 32), 145, currentY + 2.5, { width: 180, lineBreak: false });
-        doc.text(dateStr, 330, currentY + 2.5, { width: 65, lineBreak: false });
-        doc.text(timeStr, 400, currentY + 2.5, { width: 55, lineBreak: false });
-        doc.font('Helvetica-Bold').text(remarkStr, 465, currentY + 2.5, { width: 95, align: 'right', lineBreak: false });
-
-        doc.moveTo(30, currentY + 12).lineTo(565, currentY + 12).lineWidth(0.3).strokeColor('#dddddd').stroke();
-        currentY += 12.5;
+        // --- 4. SIGNATURE BLOCKS (RENDERED ON EVERY PAGE) ---
+        drawSignaturesOnPage();
       });
-
-      // Total summary row
-      if (currentY > 735) {
-        doc.addPage();
-        currentY = 30;
-      }
-      doc.rect(30, currentY + 2, 535, 15).strokeColor('#000000').lineWidth(0.8).stroke();
-      doc.fillColor('#000000').fontSize(8).font('Helvetica-Bold');
-      doc.text(`TOTAL ENTRIES: ${sortedRecords.length}`, 38, currentY + 5.5, { width: 200, lineBreak: false });
-      doc.text(`GRAND TOTAL: Tk. ${computedTotal.toLocaleString()}`, 300, currentY + 5.5, { width: 260, align: 'right', lineBreak: false });
-
-      // --- 4. SIGNATURE BLOCKS (FIXED DIRECTLY AT THE VERY BOTTOM OF THE DOCUMENT) ---
-      const sigY = 780;
-
-      // Left Signature: Roni Sarder / Medical Technology
-      doc.moveTo(50, sigY).lineTo(190, sigY).lineWidth(0.8).strokeColor('#000000').stroke();
-      doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#000000').text('Roni Sarder', 50, sigY + 5, { width: 140, align: 'center', lineBreak: false });
-      doc.fontSize(7.5).font('Helvetica').fillColor('#333333').text('Medical Technology', 50, sigY + 16, { width: 140, align: 'center', lineBreak: false });
-
-      // Right Signature: Mizanur Rahman / Incharge
-      doc.moveTo(375, sigY).lineTo(515, sigY).lineWidth(0.8).strokeColor('#000000').stroke();
-      doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#000000').text('Mizanur Rahman', 375, sigY + 5, { width: 140, align: 'center', lineBreak: false });
-      doc.fontSize(7.5).font('Helvetica').fillColor('#333333').text('Incharge', 375, sigY + 16, { width: 140, align: 'center', lineBreak: false });
 
       doc.end();
     } catch (err) {
