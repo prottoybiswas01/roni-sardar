@@ -201,9 +201,9 @@ export const generateMonthlyRecordsPDF = ({
       // Bottom subheader divider line
       doc.moveTo(30, 96).lineTo(565, 96).lineWidth(0.8).strokeColor('#000000').stroke();
 
-      // Helper to draw signatures at the bottom of ANY page (Safe height: 705pt, leaving generous margin on Letter and A4)
+      // Helper to draw signatures at the bottom of ANY page (A4 bottom position at sigY=768pt)
       const drawSignaturesOnPage = () => {
-        const sigY = 705; // 705pt = 248.7mm. Leaves 87pt clearance on Letter (792pt) and 136pt on A4 (841.89pt)
+        const sigY = 768; // 768pt = 271mm, perfectly positioned at bottom of standard A4 page
         // Left Signature: Roni Sarder / Medical Technology
         doc.moveTo(50, sigY).lineTo(190, sigY).lineWidth(0.8).strokeColor('#000000').stroke();
         doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#000000').text('Roni Sarder', 50, sigY + 5, { width: 140, align: 'center', lineBreak: false });
@@ -225,14 +225,14 @@ export const generateMonthlyRecordsPDF = ({
         doc.text('Remark (Tk)', 465, y + 4, { width: 95, align: 'right', lineBreak: false });
       };
 
-      // --- 3. RENDER TABLE WITH OPTIMAL SPACE UTILIZATION ---
+      // --- 3. RENDER TABLE WITH OPTIMAL SPACE UTILIZATION (45 rows on Page 1) ---
       let currentY = 104;
       drawTableHeader(currentY);
       currentY += 15;
 
       sortedRecords.forEach((r, idx) => {
-        // Natural break when reaching signature buffer (~40pt above signature line at 705pt for pen signing)
-        if (currentY + 13.5 > 665) {
+        // Fits exactly 45 records on Page 1 before smoothly breaking to Page 2
+        if (currentY + 13 > 685) {
           drawSignaturesOnPage();
           doc.addPage();
           currentY = 30;
@@ -264,7 +264,7 @@ export const generateMonthlyRecordsPDF = ({
       });
 
       // Total summary row at the end
-      if (currentY + 18 > 665) {
+      if (currentY + 18 > 685) {
         drawSignaturesOnPage();
         doc.addPage();
         currentY = 30;

@@ -116,7 +116,7 @@ export const createMonthlyReportPDFDoc = ({
     bodyStyles: {
       textColor: [0, 0, 0],
       fontSize: 7.5,
-      cellPadding: 0.9,
+      cellPadding: 0.88,
       lineWidth: { bottom: 0.15 },
       lineColor: [210, 210, 210],
     },
@@ -136,8 +136,8 @@ export const createMonthlyReportPDFDoc = ({
       4: { cellWidth: 24, halign: 'center' }, // Time
       5: { cellWidth: 34, halign: 'right', fontStyle: 'bold' }, // Remark (Tk)
     },
-    // margin.bottom: 63mm ensures table stops at Y=234mm, leaving ~14mm pen-signing clearance above sigY=248mm
-    margin: { top: 16, left: 12, right: 12, bottom: 63 },
+    // Dynamically calibrated: fits exactly 45 records on Page 1, leaves ~15mm pen space above sigY=271mm
+    margin: { top: 18, left: 12, right: 12, bottom: sortedRecords.length <= 45 ? 35 : 39 },
   });
 
   // 7. Official Document Metadata (Explicit A4 declaration)
@@ -149,9 +149,9 @@ export const createMonthlyReportPDFDoc = ({
     creator: 'OverDuty Pro',
   });
 
-  // 8. Signature Blocks (Rendered on EVERY PAGE at safe Y=248mm, 100% immune to Letter/A4 cut-off)
+  // 8. Signature Blocks (Rendered on EVERY PAGE at the bottom of standard A4 page)
   const totalPages = doc.internal.getNumberOfPages();
-  const sigY = 248; // Safe height: 22mm above Letter bottom edge (279.4mm) & 40mm above A4 bottom edge (297mm)
+  const sigY = 271; // Official bottom position for A4 (16mm above bottom edge, safe and professional)
 
   for (let p = 1; p <= totalPages; p++) {
     doc.setPage(p);
