@@ -201,18 +201,18 @@ export const generateMonthlyRecordsPDF = ({
       // Bottom subheader divider line
       doc.moveTo(30, 96).lineTo(565, 96).lineWidth(0.8).strokeColor('#000000').stroke();
 
-      // Helper to draw signatures at the bottom of ANY page (A4 bottom position at sigY=768pt)
+      // Helper to draw signatures near bottom edge of standard A4 (~4.5mm bottom margin, generous signing room above)
       const drawSignaturesOnPage = () => {
-        const sigY = 768; // 768pt = 271mm, perfectly positioned at bottom of standard A4 page
+        const sigY = 808; // 808pt = ~285mm, leaving ~4.5mm gap to bottom edge and maximum signing room above
         // Left Signature: Roni Sarder / Medical Technology
         doc.moveTo(50, sigY).lineTo(190, sigY).lineWidth(0.8).strokeColor('#000000').stroke();
-        doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#000000').text('Roni Sarder', 50, sigY + 5, { width: 140, align: 'center', lineBreak: false });
-        doc.fontSize(7.5).font('Helvetica').fillColor('#333333').text('Medical Technology', 50, sigY + 16, { width: 140, align: 'center', lineBreak: false });
+        doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#000000').text('Roni Sarder', 50, sigY + 4, { width: 140, align: 'center', lineBreak: false });
+        doc.fontSize(7.5).font('Helvetica').fillColor('#333333').text('Medical Technology', 50, sigY + 14, { width: 140, align: 'center', lineBreak: false });
 
         // Right Signature: Mizanur Rahman / Incharge
         doc.moveTo(375, sigY).lineTo(515, sigY).lineWidth(0.8).strokeColor('#000000').stroke();
-        doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#000000').text('Mizanur Rahman', 375, sigY + 5, { width: 140, align: 'center', lineBreak: false });
-        doc.fontSize(7.5).font('Helvetica').fillColor('#333333').text('Incharge', 375, sigY + 16, { width: 140, align: 'center', lineBreak: false });
+        doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#000000').text('Mizanur Rahman', 375, sigY + 4, { width: 140, align: 'center', lineBreak: false });
+        doc.fontSize(7.5).font('Helvetica').fillColor('#333333').text('Incharge', 375, sigY + 14, { width: 140, align: 'center', lineBreak: false });
       };
       const drawTableHeader = (y) => {
         doc.rect(30, y, 535, 15).strokeColor('#000000').lineWidth(0.8).stroke();
@@ -264,7 +264,7 @@ export const generateMonthlyRecordsPDF = ({
       });
 
       // Total summary row at the end
-      if (currentY + 18 > 685) {
+      if (currentY + 20 > 720) {
         drawSignaturesOnPage();
         doc.addPage();
         currentY = 30;

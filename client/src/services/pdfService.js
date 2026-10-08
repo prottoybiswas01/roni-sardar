@@ -136,8 +136,8 @@ export const createMonthlyReportPDFDoc = ({
       4: { cellWidth: 24, halign: 'center' }, // Time
       5: { cellWidth: 34, halign: 'right', fontStyle: 'bold' }, // Remark (Tk)
     },
-    // Dynamically calibrated: fits exactly 45 records on Page 1, leaves ~15mm pen space above sigY=271mm
-    margin: { top: 18, left: 12, right: 12, bottom: sortedRecords.length <= 45 ? 35 : 39 },
+    // Dynamically calibrated: fits exactly 45 records on Page 1, leaves large signing clearance above sigY=285mm
+    margin: { top: 18, left: 12, right: 12, bottom: sortedRecords.length <= 45 ? 35 : 38.5 },
   });
 
   // 7. Official Document Metadata (Explicit A4 declaration)
@@ -149,9 +149,9 @@ export const createMonthlyReportPDFDoc = ({
     creator: 'OverDuty Pro',
   });
 
-  // 8. Signature Blocks (Rendered on EVERY PAGE at the bottom of standard A4 page)
+  // 8. Signature Blocks (Positioned near bottom edge of standard A4 with minimal bottom gap and maximum signing area above)
   const totalPages = doc.internal.getNumberOfPages();
-  const sigY = 271; // Official bottom position for A4 (16mm above bottom edge, safe and professional)
+  const sigY = 285; // Attached near bottom edge (~4.5mm from bottom) to maximize open signing area above
 
   for (let p = 1; p <= totalPages; p++) {
     doc.setPage(p);
@@ -162,27 +162,27 @@ export const createMonthlyReportPDFDoc = ({
     doc.line(18, sigY, 68, sigY);
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     doc.setTextColor(0, 0, 0);
-    doc.text('Roni Sarder', 43, sigY + 4, { align: 'center' });
+    doc.text('Roni Sarder', 43, sigY + 3.8, { align: 'center' });
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(0, 0, 0);
-    doc.text('Medical Technology', 43, sigY + 7.5, { align: 'center' });
+    doc.text('Medical Technology', 43, sigY + 7.2, { align: 'center' });
 
     // Right Signature: Mizanur Rahman / Incharge
     doc.line(pageWidth - 68, sigY, pageWidth - 18, sigY);
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     doc.setTextColor(0, 0, 0);
-    doc.text('Mizanur Rahman', pageWidth - 43, sigY + 4, { align: 'center' });
+    doc.text('Mizanur Rahman', pageWidth - 43, sigY + 3.8, { align: 'center' });
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(0, 0, 0);
-    doc.text('Incharge', pageWidth - 43, sigY + 7.5, { align: 'center' });
+    doc.text('Incharge', pageWidth - 43, sigY + 7.2, { align: 'center' });
   }
 
   return doc;
